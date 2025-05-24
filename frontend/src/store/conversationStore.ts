@@ -45,6 +45,7 @@ export interface ConversationState {
   loadConversations: () => Promise<void>;
   deleteConversation: (conversationId: string) => Promise<void>;
   setCurrentConversation: (conversationId: string) => void;
+  updateConversationTitle: (conversationId: string, title: string) => Promise<void>;
   
   // ユーティリティ
   convertAPIMessageToNode: (message: Message) => MessageNode;
@@ -143,7 +144,7 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
 
   // バックエンドAPI統合メソッド
   sendMessageToAPI: async (content: string) => {
-    const { currentConversationId, currentNodeId, loadConversationTree } = get();
+    const { currentConversationId, currentNodeId, loadConversationTree, updateConversationTitle, nodes } = get();
     
     if (!currentConversationId) {
       throw new Error('No active conversation');
@@ -152,11 +153,25 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
     set({ isLoading: true, error: null });
 
     try {
+      // 最初のメッセージかどうかを確認（ノードが空の場合）
+      const isFirstMessage = Object.keys(nodes).length === 0;
+
       const response = await apiClient.sendMessage({
         conversation_id: currentConversationId,
         parent_id: currentNodeId,
         message: content,
       });
+
+      // 最初のメッセージの場合、タイトルを更新
+      if (isFirstMessage) {
+        const title = content.length > 10 ? content.substring(0, 10) : content;
+        try {
+          await updateConversationTitle(currentConversationId, title);
+        } catch (titleError) {
+          console.error('Failed to update title:', titleError);
+          // タイトル更新に失敗してもメッセージ送信は続行
+        }
+      }
 
       // メッセージ送信後、ツリーを再読み込みして最新の状態を取得
       await loadConversationTree(currentConversationId);
@@ -259,6 +274,24 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
 
   setCurrentConversation: (conversationId: string) => {
     set({ currentConversationId: conversationId });
+  },
+
+  updateConversationTitle: async (conversationId: string, title: string) => {
+    try {
+      await apiClient.updateConversationTitle(conversationId, title);
+      
+      // ローカルの会話一覧のタイトルも更新
+      set((state) => ({
+        conversations: state.conversations.map(conv => 
+          conv.id === conversationId 
+            ? { ...conv, title }
+            : conv
+        ),
+      }));
+    } catch (error) {
+      console.error('Failed to update conversation title:', error);
+      throw error;
+    }
   },
 
   // ユーティリティメソッド

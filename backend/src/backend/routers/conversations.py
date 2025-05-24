@@ -201,7 +201,7 @@ async def delete_conversation(
 @router.put("/{conversation_id}/title")
 async def update_conversation_title(
     conversation_id: int,
-    title: str,
+    request: dict,
     db: AsyncSession = Depends(get_db)
 ):
     """会話のタイトルを更新"""
@@ -215,7 +215,7 @@ async def update_conversation_title(
             detail="Conversation not found"
         )
     
-    conversation.title = title
+    conversation.title = request.get("title", "")
     await db.commit()
     await db.refresh(conversation)
     

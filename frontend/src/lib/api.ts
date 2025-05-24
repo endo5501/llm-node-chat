@@ -109,7 +109,7 @@ class ApiClient {
   async createConversation(title?: string): Promise<Conversation> {
     return this.request<Conversation>('/api/conversations/', {
       method: 'POST',
-      body: JSON.stringify({ title: title || 'New Conversation' }),
+      body: JSON.stringify({ title: title || '新しいチャット' }),
     });
   }
 
@@ -132,8 +132,8 @@ class ApiClient {
     });
   }
 
-  async updateConversationTitle(id: string, title: string): Promise<Conversation> {
-    return this.request<Conversation>(`/api/conversations/${id}/title`, {
+  async updateConversationTitle(id: string, title: string): Promise<{ message: string }> {
+    return this.request<{ message: string }>(`/api/conversations/${id}/title`, {
       method: 'PUT',
       body: JSON.stringify({ title }),
     });
