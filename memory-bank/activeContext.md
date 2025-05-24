@@ -6,6 +6,15 @@
 
 ## 最近の変更
 
+*   **✅ フロントエンドとバックエンドの統合完了**:
+    *   APIクライアント実装（`frontend/src/lib/api.ts`）
+    *   会話ストアの拡張（バックエンドAPI統合機能追加）
+    *   MessageInputコンポーネントのAPI統合
+    *   Sidebarコンポーネントの会話管理機能統合
+    *   CORS設定による正常な通信確立
+    *   テスト用LLMプロバイダーの作成・アクティブ化
+    *   両サーバーの同時起動と動作確認
+
 *   **バックエンドAPI実装**: FastAPIを使用した包括的なRESTful API
 *   **データベース設計**: SQLAlchemy + SQLiteによる会話分岐対応のデータベース構造
 *   **LLMサービス統合**: OpenAI、Anthropic、Gemini、Ollamaに対応したLLMサービス
