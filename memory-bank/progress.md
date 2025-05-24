@@ -2,25 +2,32 @@
 
 ## 完了した作業
 
-*   メモリバンクのコアファイルがすべて初期化されました。
+*   **メモリバンクの初期化**:
     *   `memory-bank/projectbrief.md`
     *   `memory-bank/productContext.md`
     *   `memory-bank/systemPatterns.md`
     *   `memory-bank/techContext.md`
     *   `memory-bank/activeContext.md`
-    *   `memory-bank/progress.md` (現在作成中)
+    *   `memory-bank/progress.md`
 
-これらのファイルには、プロジェクトの目的、UI仕様、システムアーキテクチャ、技術スタック、開発セットアップ、および現在の開発状況に関する基本的な情報が含まれています。
+*   **フロントエンド基盤構築**:
+    *   Next.jsプロジェクトのセットアップ（TypeScript、ESLint、Tailwind CSS、App Router対応）
+    *   pnpmパッケージマネージャーのインストールと設定
+    *   shadcn/uiの統合
+    *   基本的な3カラムレイアウトの実装（`frontend/src/app/page.tsx`）
+        *   左側サイドバー（チャット履歴、新規チャット、設定ボタン）
+        *   中央チャット領域（会話履歴、テキスト入力）
+        *   右側ツリー表示領域（会話ツリー表示用）
+    *   開発サーバーの起動（http://localhost:3000）
 
 ## 残りの作業
 
 *   **フロントエンド開発**:
-    *   Next.jsプロジェクトのセットアップ
-    *   メイン画面（サイドバー、チャット領域、ツリー表示領域）のUI実装
-    *   React Flowを用いたツリー表示の実装
+    *   React Flowライブラリの追加とツリー表示の実装
     *   Zustand/Recoilを用いた状態管理の実装
-    *   Tailwind CSSとshadcn/uiを用いたスタイリング
+    *   チャット機能コンポーネントの実装（MessageList、MessageInput、MessageBubble）
     *   設定表示ウィンドウのUI実装
+    *   WebSocket通信の実装
 *   **バックエンド開発**:
     *   Python (FastAPI) プロジェクトのセットアップ
     *   PostgreSQLデータベースのセットアップとAlembicによるマイグレーション管理
@@ -38,11 +45,12 @@
 
 ## 現在のステータス
 
-プロジェクトは初期計画段階を完了し、主要なコンテキストドキュメントが整備されました。これにより、今後の開発作業を進めるための強固な基盤が確立されました。
+フロントエンド開発の基盤構築が完了し、Next.jsプロジェクトが稼働中です。基本的な3カラムレイアウトが実装され、開発サーバーがhttp://localhost:3000で起動しています。次の段階として、React Flowを用いたツリー表示機能と状態管理の実装に進む準備が整いました。
 
 ## 既知の問題
 
-現時点では、具体的な実装上の既知の問題はありません。開発を進める中で、技術的な課題や設計上の問題が発生する可能性があります。
+*   **ブラウザ起動の問題**: Puppeteerを使用したブラウザの自動起動に問題があり、UIの動作確認が制限されています。Chromiumブラウザはインストール済みですが、Puppeteerとの連携に課題があります。
+*   **TypeScriptエラーの解決**: 依存関係のインストール後、JSX関連のTypeScriptエラーは解消されている可能性が高いですが、確認が必要です。
 
 ## プロジェクト決定の進化
 

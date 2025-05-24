@@ -2,21 +2,23 @@
 
 ## 現在の作業の焦点
 
-現在、プロジェクトの初期セットアップとして、メモリバンクのコアファイルの初期化を行っています。これにより、プロジェクトの目的、技術スタック、システムアーキテクチャ、および開発プロセスに関する基本的なコンテキストが確立されます。
+フロントエンド開発の基盤構築が完了し、現在は基本的なUIコンポーネントの実装とReact Flowを用いたツリー表示機能の開発に焦点を当てています。Next.jsプロジェクトのセットアップ、Tailwind CSS + shadcn/uiの統合、および3つの主要領域（サイドバー、チャット領域、ツリー表示領域）の基本レイアウトが完成しています。
 
 ## 最近の変更
 
-*   `memory-bank/projectbrief.md` を作成しました。
-*   `memory-bank/productContext.md` を作成しました。
-*   `memory-bank/systemPatterns.md` を作成しました。
-*   `memory-bank/techContext.md` を作成しました。
+*   Next.jsプロジェクト（TypeScript、ESLint、Tailwind CSS、App Router対応）のセットアップを完了
+*   shadcn/uiの統合を完了
+*   `frontend/src/app/page.tsx`に基本的な3カラムレイアウトを実装
+*   開発サーバー（http://localhost:3000）を起動
+*   pnpmパッケージマネージャーのセットアップを完了
 
 ## 次のステップ
 
-残りのメモリバンクコアファイルを作成します。
-
-1.  `memory-bank/activeContext.md` (現在作成中)
-2.  `memory-bank/progress.md`
+1.  React Flowライブラリの追加とツリー表示コンポーネントの実装
+2.  Zustandを用いた状態管理の実装
+3.  チャット機能の基本コンポーネント（MessageList、MessageInput、MessageBubble）の実装
+4.  設定モーダルの実装
+5.  WebSocket通信の準備
 
 ## アクティブな決定と考慮事項
 
