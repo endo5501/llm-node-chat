@@ -199,10 +199,16 @@ export const useSettingsStore = create<SettingsState>()(
       },
 
       clearLocalStorage: () => {
-        set(state => {
-          // @ts-expect-error: persist.clearStorage is not typed
-          persist.clearStorage('llm-chat-settings');
-          return { ...state, providerConfigs: defaultProviderConfigs, activeProviderId: null };
+        // ローカルストレージから設定を削除
+        localStorage.removeItem('llm-chat-settings');
+        
+        // ストアの状態をデフォルトにリセット
+        set({
+          providerConfigs: defaultProviderConfigs,
+          activeProviders: [],
+          activeProviderId: null,
+          isLoading: false,
+          error: null,
         });
       },
       convertAPIProvider: (apiProvider: APILLMProvider): LLMProvider => {
