@@ -17,9 +17,18 @@ export interface Conversation {
   updated_at: string;
 }
 
+export interface MessageTreeNode {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  created_at: string;
+  children: MessageTreeNode[];
+}
+
 export interface ConversationTree {
   conversation_id: string;
-  messages: Message[];
+  title: string;
+  root_messages: MessageTreeNode[];
 }
 
 export interface SendMessageRequest {
@@ -92,7 +101,12 @@ class ApiClient {
   }
 
   async getConversations(): Promise<Conversation[]> {
-    return this.request<Conversation[]>('/api/conversations/');
+    const conversations = await this.request<any[]>('/api/conversations/');
+    // IDを文字列に変換
+    return conversations.map(conv => ({
+      ...conv,
+      id: conv.id.toString()
+    }));
   }
 
   async getConversation(id: string): Promise<Conversation> {
@@ -113,7 +127,20 @@ class ApiClient {
   }
 
   async getConversationTree(id: string): Promise<ConversationTree> {
-    return this.request<ConversationTree>(`/api/conversations/${id}/tree`);
+    const tree = await this.request<any>(`/api/conversations/${id}/tree`);
+    
+    // IDを文字列に変換する再帰関数
+    const convertNodeIds = (node: any): MessageTreeNode => ({
+      ...node,
+      id: node.id.toString(),
+      children: node.children.map(convertNodeIds)
+    });
+    
+    return {
+      ...tree,
+      conversation_id: tree.conversation_id.toString(),
+      root_messages: tree.root_messages.map(convertNodeIds)
+    };
   }
 
   // Chat functionality

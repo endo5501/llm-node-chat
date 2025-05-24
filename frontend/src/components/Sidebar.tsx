@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useConversationStore } from '@/store/conversationStore';
 import { useSettingsStore } from '@/store/settingsStore';
 
 export const Sidebar: React.FC = () => {
+  const [isMounted, setIsMounted] = useState(false);
   const { 
     conversations,
     currentConversationId,
@@ -17,10 +18,28 @@ export const Sidebar: React.FC = () => {
   } = useConversationStore();
   const { openSettings } = useSettingsStore();
 
-  // コンポーネントマウント時に会話一覧を読み込み
+  // マウント状態を管理
   useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // マウント後に会話一覧を読み込み
+  useEffect(() => {
+    if (!isMounted) {
+      return;
+    }
+    
     loadConversations().catch(console.error);
-  }, [loadConversations]);
+  }, [isMounted, loadConversations]);
+
+  // マウント前は何も表示しない
+  if (!isMounted) {
+    return (
+      <div className="w-64 bg-gray-50 border-r border-gray-200 flex items-center justify-center">
+        <div className="text-gray-500">Loading...</div>
+      </div>
+    );
+  }
 
   const handleNewChat = async () => {
     try {

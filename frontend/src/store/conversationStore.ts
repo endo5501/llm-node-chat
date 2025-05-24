@@ -48,7 +48,7 @@ export interface ConversationState {
   
   // ユーティリティ
   convertAPIMessageToNode: (message: Message) => MessageNode;
-  buildTreeFromMessages: (messages: Message[]) => void;
+  buildTreeFromMessages: (treeData: any) => void;
 }
 
 export const useConversationStore = create<ConversationState>((set, get) => ({
@@ -61,9 +61,6 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
   error: null,
 
   addMessage: (parentId, role, content) => {
-    console.log('=== ConversationStore addMessage ===');
-    console.log('Input - parentId:', parentId, 'role:', role, 'content:', content);
-    
     const newId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const newNode: MessageNode = {
       id: newId,
@@ -74,23 +71,16 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
       children: [],
     };
 
-    console.log('Created new node:', newNode);
-
     set((state) => {
-      console.log('Current state before update:', state);
-      
       const newNodes = { ...state.nodes };
       newNodes[newId] = newNode;
 
       // 親ノードの子リストに追加
       if (parentId && newNodes[parentId]) {
-        console.log('Adding child to parent node:', parentId);
         newNodes[parentId] = {
           ...newNodes[parentId],
           children: [...newNodes[parentId].children, newId],
         };
-      } else {
-        console.log('No parent node found or parentId is null');
       }
 
       // 現在のパスを正しく構築
@@ -104,23 +94,16 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
           currentId = newNodes[currentId]?.parentId || null;
         }
         newPath = [...parentPath, newId];
-        console.log('Built path with parent:', newPath);
       } else {
         // ルートノードの場合
         newPath = [newId];
-        console.log('Built root path:', newPath);
       }
 
-      const newState = {
+      return {
         nodes: newNodes,
         currentNodeId: newId,
         currentPath: newPath,
       };
-
-      console.log('New state after update:', newState);
-      console.log('=== End ConversationStore addMessage ===');
-
-      return newState;
     });
 
     return newId;
@@ -227,7 +210,7 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
       const tree = await apiClient.getConversationTree(conversationId);
       const { buildTreeFromMessages } = get();
       
-      buildTreeFromMessages(tree.messages);
+      buildTreeFromMessages(tree);
       
       set({ 
         currentConversationId: conversationId,
@@ -322,12 +305,11 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
     };
   },
 
-  buildTreeFromMessages: (messages: Message[]) => {
-    const { convertAPIMessageToNode } = get();
+  buildTreeFromMessages: (treeData: any) => {
     const nodes: Record<string, MessageNode> = {};
     
-    // メッセージが空の場合は空の状態に設定
-    if (messages.length === 0) {
+    // ツリーデータが空の場合は空の状態に設定
+    if (!treeData.root_messages || treeData.root_messages.length === 0) {
       set({
         nodes: {},
         currentNodeId: null,
@@ -336,26 +318,54 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
       return;
     }
     
-    // 全メッセージをノードに変換
-    messages.forEach(message => {
-      nodes[message.id] = convertAPIMessageToNode(message);
-    });
-
-    // 親子関係を構築
-    messages.forEach(message => {
-      if (message.parent_id && nodes[message.parent_id]) {
-        nodes[message.parent_id].children.push(message.id);
-      }
+    // ツリー構造を再帰的に変換
+    const convertTreeNode = (treeNode: any): void => {
+      const node: MessageNode = {
+        id: treeNode.id.toString(),
+        parentId: null, // 後で設定
+        role: treeNode.role,
+        content: treeNode.content,
+        createdAt: new Date(treeNode.created_at),
+        children: treeNode.children.map((child: any) => child.id.toString()),
+      };
+      
+      nodes[node.id] = node;
+      
+      // 子ノードを再帰的に処理
+      treeNode.children.forEach((child: any) => {
+        convertTreeNode(child);
+        // 子ノードの親IDを設定
+        if (nodes[child.id.toString()]) {
+          nodes[child.id.toString()].parentId = node.id;
+        }
+      });
+    };
+    
+    // ルートメッセージから開始
+    treeData.root_messages.forEach((rootMessage: any) => {
+      convertTreeNode(rootMessage);
     });
 
     // 最新のメッセージを現在のノードとして設定
-    const latestMessage = messages.reduce((latest, current) => 
-      new Date(current.created_at) > new Date(latest.created_at) ? current : latest
+    const allNodes = Object.values(nodes);
+    
+    if (allNodes.length === 0) {
+      set({
+        nodes: {},
+        currentNodeId: null,
+        currentPath: [],
+      });
+      return;
+    }
+    
+    const latestMessage = allNodes.reduce((latest, current) => 
+      current.createdAt > latest.createdAt ? current : latest
     );
 
     // 現在のパスを構築
     const path: string[] = [];
     let currentId: string | null = latestMessage.id;
+    
     while (currentId && nodes[currentId]) {
       path.unshift(currentId);
       currentId = nodes[currentId].parentId;

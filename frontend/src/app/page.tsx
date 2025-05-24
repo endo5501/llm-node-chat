@@ -1,10 +1,16 @@
 'use client';
 
-import { Sidebar } from '@/components/Sidebar';
+import dynamic from 'next/dynamic';
 import { MessageList } from '@/components/MessageList';
 import { MessageInput } from '@/components/MessageInput';
 import { ConversationTree } from '@/components/ConversationTree';
 import { SettingsModal } from '@/components/SettingsModal';
+
+// 動的インポートでクライアントサイドでのみ読み込み
+const Sidebar = dynamic(() => import('@/components/Sidebar').then(mod => ({ default: mod.Sidebar })), {
+  ssr: false,
+  loading: () => <div className="w-64 bg-gray-50 border-r border-gray-200 flex items-center justify-center">Loading...</div>
+});
 
 export default function Home() {
   return (

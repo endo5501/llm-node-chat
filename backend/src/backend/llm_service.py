@@ -32,19 +32,19 @@ class LLMService:
         formatted_messages = self._format_messages_for_provider(provider.name, messages)
         
         try:
-            if provider.name == "openai":
+            if "openai" in provider.name.lower():
                 return await self._generate_openai_response(
                     provider, formatted_messages, max_tokens
                 )
-            elif provider.name == "anthropic":
+            elif "anthropic" in provider.name.lower() or "claude" in provider.name.lower():
                 return await self._generate_anthropic_response(
                     provider, formatted_messages, max_tokens
                 )
-            elif provider.name == "gemini":
+            elif "gemini" in provider.name.lower():
                 return await self._generate_gemini_response(
                     provider, formatted_messages, max_tokens
                 )
-            elif provider.name == "ollama":
+            elif "ollama" in provider.name.lower():
                 return await self._generate_ollama_response(
                     provider, formatted_messages, max_tokens
                 )
