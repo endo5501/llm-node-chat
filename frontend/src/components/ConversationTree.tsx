@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useMemo } from 'react';
+import React, { useCallback, useMemo, useRef } from 'react';
 import {
   ReactFlow,
   Node,
@@ -12,6 +12,10 @@ import {
   Controls,
   Background,
   BackgroundVariant,
+  ReactFlowInstance,
+  MarkerType,
+  Handle,
+  Position,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { useConversationStore } from '@/store/conversationStore';
@@ -34,7 +38,7 @@ const MessageNodeComponent = ({ data }: { data: { id: string; role: string; cont
   return (
     <div
       className={`
-        px-3 py-2 rounded-lg border-2 cursor-pointer min-w-[80px] text-center text-sm
+        px-2 py-1 rounded-lg border-2 cursor-pointer min-w-[60px] text-center text-xs relative
         ${isAssistant ? 'cursor-pointer' : 'cursor-default'}
         ${isSelected ? 'border-blue-500 bg-blue-100' : 'border-gray-300 bg-white'}
         ${data.role === 'user' ? 'bg-green-50 border-green-300' : ''}
@@ -43,10 +47,31 @@ const MessageNodeComponent = ({ data }: { data: { id: string; role: string; cont
       `}
       onClick={handleClick}
     >
-      <div className="font-medium text-xs text-gray-600 mb-1">
-        {data.role === 'user' ? 'User' : 'AI'}
-      </div>
+      {/* 上部のハンドル（入力用） */}
+      <Handle
+        type="target"
+        position={Position.Top}
+        style={{
+          background: '#6b7280',
+          width: 8,
+          height: 8,
+          border: '2px solid #fff',
+        }}
+      />
+      
       <div className="text-gray-800">{displayText}</div>
+      
+      {/* 下部のハンドル（出力用） */}
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        style={{
+          background: '#6b7280',
+          width: 8,
+          height: 8,
+          border: '2px solid #fff',
+        }}
+      />
     </div>
   );
 };
@@ -57,13 +82,17 @@ const nodeTypes = {
 };
 
 export const ConversationTree: React.FC = () => {
-  const { nodes: storeNodes } = useConversationStore();
+  const { nodes: storeNodes, currentNodeId } = useConversationStore();
+  const reactFlowInstance = useRef<ReactFlowInstance | null>(null);
 
   // React Flow用のノードとエッジを生成
   const { nodes, edges } = useMemo(() => {
     const flowNodes: Node[] = [];
     const flowEdges: Edge[] = [];
     const nodePositions: Record<string, { x: number; y: number }> = {};
+
+    console.log('=== ConversationTree Debug ===');
+    console.log('Store nodes:', storeNodes);
 
     // ノードの配置を計算
     const calculatePositions = (nodeId: string, level: number = 0, siblingIndex: number = 0) => {
@@ -83,6 +112,8 @@ export const ConversationTree: React.FC = () => {
 
     // ルートノードから開始
     const rootNodes = Object.values(storeNodes).filter(node => !node.parentId);
+    console.log('Root nodes:', rootNodes);
+    
     rootNodes.forEach((rootNode, index) => {
       calculatePositions(rootNode.id, 0, index);
     });
@@ -103,17 +134,35 @@ export const ConversationTree: React.FC = () => {
         },
       });
 
-      // エッジを作成
+      // エッジを作成（矢印線）
       if (node.parentId && storeNodes[node.parentId]) {
+        console.log(`Creating edge: ${node.parentId} -> ${node.id}`);
         flowEdges.push({
           id: `edge-${node.parentId}-${node.id}`,
           source: node.parentId,
           target: node.id,
-          type: 'smoothstep',
-          style: { stroke: '#6b7280', strokeWidth: 2 },
+          sourceHandle: null,
+          targetHandle: null,
+          type: 'default',
+          style: { 
+            stroke: '#6b7280', 
+            strokeWidth: 2,
+          },
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            width: 20,
+            height: 20,
+            color: '#6b7280',
+          },
         });
+      } else {
+        console.log(`No edge for node ${node.id}, parentId: ${node.parentId}`);
       }
     });
+
+    console.log('Generated nodes:', flowNodes);
+    console.log('Generated edges:', flowEdges);
+    console.log('=== End Debug ===');
 
     return { nodes: flowNodes, edges: flowEdges };
   }, [storeNodes]);
@@ -127,10 +176,28 @@ export const ConversationTree: React.FC = () => {
     setEdges(edges);
   }, [nodes, edges, setNodes, setEdges]);
 
+  // 新しいノードが追加された時に中央に表示
+  React.useEffect(() => {
+    if (currentNodeId && reactFlowInstance.current) {
+      const currentNode = nodes.find(node => node.id === currentNodeId);
+      if (currentNode) {
+        reactFlowInstance.current.setCenter(
+          currentNode.position.x + 50, // ノードの中央
+          currentNode.position.y + 25,
+          { zoom: 1 }
+        );
+      }
+    }
+  }, [currentNodeId, nodes]);
+
   const onConnect = useCallback(
     (params: Connection) => setEdges((eds) => addEdge(params, eds)),
     [setEdges]
   );
+
+  const onInit = useCallback((instance: ReactFlowInstance) => {
+    reactFlowInstance.current = instance;
+  }, []);
 
   return (
     <div className="w-full h-full">
@@ -140,10 +207,19 @@ export const ConversationTree: React.FC = () => {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onInit={onInit}
         nodeTypes={nodeTypes}
         fitView
         fitViewOptions={{
           padding: 0.2,
+        }}
+        defaultEdgeOptions={{
+          type: 'default',
+          markerEnd: {
+            type: MarkerType.ArrowClosed,
+            width: 20,
+            height: 20,
+          },
         }}
       >
         <Controls />
