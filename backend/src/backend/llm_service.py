@@ -159,12 +159,24 @@ class LLMService:
         max_tokens: int
     ) -> str:
         """Ollama APIからの応答生成"""
+        # メッセージを単一のプロンプトに変換
+        prompt = ""
+        for msg in messages:
+            if msg["role"] == "user":
+                prompt += f"User: {msg['content']}\n"
+            elif msg["role"] == "assistant":
+                prompt += f"Assistant: {msg['content']}\n"
+            elif msg["role"] == "system":
+                prompt += f"System: {msg['content']}\n"
+        
+        prompt += "Assistant: "
+        
         async with httpx.AsyncClient() as client:
             response = await client.post(
-                f"{provider.api_url}/api/chat",
+                f"{provider.api_url}/api/generate",
                 json={
                     "model": provider.model_name,
-                    "messages": messages,
+                    "prompt": prompt,
                     "stream": False,
                     "options": {
                         "num_predict": max_tokens,
@@ -177,7 +189,7 @@ class LLMService:
             response.raise_for_status()
             result = response.json()
             
-            return result["message"]["content"]
+            return result["response"]
     
     def truncate_messages_for_context(
         self,

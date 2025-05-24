@@ -44,6 +44,8 @@ export const Sidebar: React.FC = () => {
   const handleNewChat = async () => {
     try {
       await createNewConversation();
+      // 新規作成後に会話一覧を再読み込み
+      await loadConversations();
     } catch (error) {
       console.error('新規チャット作成エラー:', error);
       alert('新規チャットの作成に失敗しました');
@@ -68,6 +70,8 @@ export const Sidebar: React.FC = () => {
 
     try {
       await deleteConversation(chatId);
+      // 削除後に会話一覧を再読み込み
+      await loadConversations();
     } catch (error) {
       console.error('チャット削除エラー:', error);
       alert('チャットの削除に失敗しました');

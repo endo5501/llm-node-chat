@@ -50,8 +50,19 @@ export const MessageInput: React.FC = () => {
       console.log('=== End MessageInput API Integration ===');
     } catch (error) {
       console.error('メッセージ送信エラー:', error);
+      // エラーの詳細をログに出力
+      if (error instanceof Error) {
+        console.error('Error message:', error.message);
+        console.error('Error stack:', error.stack);
+      } else {
+        console.error('Non-Error object:', error);
+      }
+      
       // エラー表示（必要に応じてトーストやアラートを追加）
-      alert(`エラーが発生しました: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      const errorMessage = error instanceof Error ? error.message : 
+                          typeof error === 'string' ? error : 
+                          JSON.stringify(error);
+      alert(`エラーが発生しました: ${errorMessage}`);
     }
   };
 

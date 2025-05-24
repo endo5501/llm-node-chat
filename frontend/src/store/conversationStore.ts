@@ -143,7 +143,7 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
 
   // バックエンドAPI統合メソッド
   sendMessageToAPI: async (content: string) => {
-    const { currentConversationId, currentNodeId } = get();
+    const { currentConversationId, currentNodeId, loadConversationTree } = get();
     
     if (!currentConversationId) {
       throw new Error('No active conversation');
@@ -155,45 +155,13 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
       const response = await apiClient.sendMessage({
         conversation_id: currentConversationId,
         parent_id: currentNodeId,
-        content,
+        message: content,
       });
 
-      // APIレスポンスからノードを作成
-      const { convertAPIMessageToNode } = get();
-      const userNode = convertAPIMessageToNode(response.user_message);
-      const assistantNode = convertAPIMessageToNode(response.assistant_message);
-
-      set((state) => {
-        const newNodes = { ...state.nodes };
-        
-        // ユーザーメッセージを追加
-        newNodes[userNode.id] = userNode;
-        
-        // 親ノードの子リストに追加
-        if (userNode.parentId && newNodes[userNode.parentId]) {
-          newNodes[userNode.parentId] = {
-            ...newNodes[userNode.parentId],
-            children: [...newNodes[userNode.parentId].children, userNode.id],
-          };
-        }
-
-        // アシスタントメッセージを追加
-        newNodes[assistantNode.id] = assistantNode;
-        newNodes[userNode.id] = {
-          ...newNodes[userNode.id],
-          children: [assistantNode.id],
-        };
-
-        // 現在のパスを更新
-        const newPath = [...state.currentPath, userNode.id, assistantNode.id];
-
-        return {
-          nodes: newNodes,
-          currentNodeId: assistantNode.id,
-          currentPath: newPath,
-          isLoading: false,
-        };
-      });
+      // メッセージ送信後、ツリーを再読み込みして最新の状態を取得
+      await loadConversationTree(currentConversationId);
+      
+      set({ isLoading: false });
     } catch (error) {
       set({ 
         isLoading: false, 

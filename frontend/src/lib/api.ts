@@ -34,7 +34,7 @@ export interface ConversationTree {
 export interface SendMessageRequest {
   conversation_id: string;
   parent_id: string | null;
-  content: string;
+  message: string;
 }
 
 export interface SendMessageResponse {
@@ -67,6 +67,9 @@ class ApiClient {
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
     
+    console.log(`[API] Making request to: ${url}`);
+    console.log(`[API] Request options:`, options);
+    
     const config: RequestInit = {
       headers: {
         'Content-Type': 'application/json',
@@ -78,16 +81,21 @@ class ApiClient {
     try {
       const response = await fetch(url, config);
       
+      console.log(`[API] Response status: ${response.status}`);
+      
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
+        console.error(`[API] Error response:`, errorData);
         throw new Error(
           errorData.detail || `HTTP error! status: ${response.status}`
         );
       }
 
-      return await response.json();
+      const data = await response.json();
+      console.log(`[API] Response data:`, data);
+      return data;
     } catch (error) {
-      console.error(`API request failed: ${endpoint}`, error);
+      console.error(`[API] Request failed: ${endpoint}`, error);
       throw error;
     }
   }
@@ -154,11 +162,12 @@ class ApiClient {
   async getChatHistory(conversationId: string, nodeId?: string): Promise<Message[]> {
     const params = new URLSearchParams();
     if (nodeId) {
-      params.append('node_id', nodeId);
+      params.append('from_message_id', nodeId);
     }
     
     const endpoint = `/api/chat/history/${conversationId}${params.toString() ? `?${params.toString()}` : ''}`;
-    return this.request<Message[]>(endpoint);
+    const response = await this.request<{ conversation_id: number; messages: Message[] }>(endpoint);
+    return response.messages;
   }
 
   async regenerateResponse(messageId: string): Promise<Message> {
