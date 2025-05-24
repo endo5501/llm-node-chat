@@ -5,42 +5,145 @@
 本アプリケーションは、フロントエンドとバックエンドに分かれたクライアント・サーバーアーキテクチャを採用しています。
 
 ```
-╭─React (Next.js)────────╮     WebSocket/SSE      ╭─FastAPI────────╮
+╭─React (Next.js)────────╮     HTTP REST API      ╭─FastAPI────────╮
 │  React Flow            │◀──────────────────────▶│  LLM Service    │
-│  XState (branch state) │                        │  (OpenAI / ...) │
+│  Zustand (state mgmt)  │    (+ WebSocket/SSE)   │  (OpenAI / ...) │
 ╰──────────────┬────────╯                        ╰────────┬──────╯
-               │ SQL/Graph                             │
+               │ localStorage                          │
                ▼                                       ▼
-           PostgreSQL                           Ollama / OpenAI
+        Settings Storage                        SQLite / PostgreSQL
 ```
 
-*   **フロントエンド**: Next.js (React) を使用し、UIの描画にはReact Flow、状態管理にはZustand/Recoil、スタイリングにはTailwind CSS (+ shadcn/ui) を利用します。会話のブランチ状態管理にはXStateの導入が検討されています。
-*   **バックエンド**: Python (FastAPI) を使用し、LLMサービス（OpenAI / Ollamaなど）との連携を担当します。
-*   **データベース**: PostgreSQLを使用し、会話履歴やブランチ情報を永続化します。
+*   **フロントエンド**: Next.js (React) を使用し、UIの描画にはReact Flow、状態管理にはZustand、スタイリングにはTailwind CSS (+ shadcn/ui) を利用します。
+*   **バックエンド**: Python (FastAPI) を使用し、LLMサービス（OpenAI、Anthropic、Gemini、Ollamaなど）との連携を担当します。
+*   **データベース**: 開発環境ではSQLite、本番環境ではPostgreSQLを使用し、会話履歴やブランチ情報を永続化します。
 
-## 主要な技術的決定とデザインパターン
+## 実装済みの技術的決定とデザインパターン
 
-*   **会話ブランチのロジック**:
-    *   メッセージは`Messages`テーブルに保存されます。
-        *   `id` (PK)
-        *   `parent_id` (NULLならroot)
-        *   `role` (user/assistant/system)
-        *   `content`
-        *   `created_at`
-    *   ブランチを選択した場合、選択されたノードから根まで`parent_id`をたどってメッセージを逆順に並べます。
-    *   LLMに投げる際には、`max_tokens`を超えないように古いメッセージからtruncateされます。
-    *   新しい問い直しは、現在選択されているノードを親として新しいメッセージをINSERTすることで実現されます。これにより、どの枝からでも無限に分岐が可能です（Gitの`checkout -b`のような挙動）。
-*   **リアルタイム通信**: フロントエンドとバックエンド間の通信にはWebSocketまたはSSE (Server-Sent Events) を利用し、LLMからの応答をリアルタイムでUIに反映させます。
-*   **データベースマイグレーション**: Alembicを使用してデータベーススキーマの変更を管理します。
+### 会話ブランチのロジック（実装完了）
 
-## コンポーネント間の関係
+*   **データベース構造**:
+    ```sql
+    -- 会話セッション
+    conversations (
+        id INTEGER PRIMARY KEY,
+        title VARCHAR(255),
+        created_at DATETIME,
+        updated_at DATETIME
+    )
+    
+    -- メッセージとツリー構造
+    messages (
+        id INTEGER PRIMARY KEY,
+        conversation_id INTEGER REFERENCES conversations(id),
+        parent_id INTEGER REFERENCES messages(id), -- NULLならroot
+        role VARCHAR(20), -- user/assistant/system
+        content TEXT,
+        created_at DATETIME
+    )
+    
+    -- LLMプロバイダー設定
+    llm_providers (
+        id INTEGER PRIMARY KEY,
+        name VARCHAR(50) UNIQUE,
+        api_key VARCHAR(255),
+        api_url VARCHAR(255), -- Ollamaなど用
+        model_name VARCHAR(100),
+        is_active BOOLEAN,
+        created_at DATETIME,
+        updated_at DATETIME
+    )
+    ```
 
-*   **フロントエンド ↔ バックエンド**: WebSocket/SSEを通じてリアルタイムでチャットメッセージとLLM応答をやり取りします。
-*   **バックエンド ↔ LLMサービス**: バックエンドのLLMサービスが、設定されたLLMプロバイダー（OpenAI, Ollamaなど）のAPIを呼び出します。
-*   **バックエンド ↔ データベース**: バックエンドがPostgreSQLに対してメッセージの保存、取得、更新を行います。
+*   **ブランチ選択ロジック**:
+    1. 選択されたノードから根まで`parent_id`をたどって逆順に並べる
+    2. `max_tokens`を超えないように古いメッセージからtruncateする
+    3. その配列のみをLLMに投げる
 
-## 重要な実装パス
+*   **新しい分岐の作成**:
+    - 現在選択されているノードを親として新しいメッセージをINSERT
+    - どの枝からでも無限に分岐可能（Gitの`checkout -b`のような挙動）
 
-*   **メッセージの保存と取得**: ユーザー入力とLLM応答を正確にデータベースに保存し、選択されたブランチに基づいて関連する会話履歴を効率的に取得するロジック。
-*   **ツリー構造の構築と表示**: データベースから取得した`parent_id`情報を用いて、フロントエンドで会話のツリー構造を正確に再構築し、React Flowで視覚的に表現する。
-*   **LLMコンテキスト管理**: 選択されたブランチのコンテキストを正確に抽出し、`max_tokens`の制約内でLLMに渡すためのロジック。
+### API設計パターン（実装完了）
+
+*   **RESTful エンドポイント**:
+    - `/api/conversations/`: 会話管理（CRUD + ツリー構造取得）
+    - `/api/chat/`: チャット機能（送信、履歴、再生成）
+    - `/api/providers/`: LLMプロバイダー管理（設定、切り替え、テスト）
+
+*   **非同期処理**: FastAPI + SQLAlchemyの非同期機能を活用
+*   **エラーハンドリング**: HTTPステータスコードと詳細なエラーメッセージ
+*   **CORS設定**: フロントエンド（localhost:3000）からのアクセス許可
+
+### 状態管理パターン（実装完了）
+
+*   **フロントエンド状態管理**:
+    - **Zustand**: 会話ノード、設定、UI状態の管理
+    - **localStorage**: 設定の永続化（バージョン管理機能付き）
+    - **React Flow**: ツリー表示とノード操作の状態管理
+
+*   **バックエンド状態管理**:
+    - **SQLAlchemy Session**: データベース接続とトランザクション管理
+    - **依存性注入**: FastAPIのDependsを使用したリソース管理
+
+### LLMサービス統合パターン（実装完了）
+
+*   **プロバイダー抽象化**:
+    ```python
+    class LLMService:
+        async def generate_response(provider, messages, max_tokens)
+        def _format_messages_for_provider(provider_name, messages)
+        async def _generate_openai_response(...)
+        async def _generate_anthropic_response(...)
+        async def _generate_gemini_response(...)
+        async def _generate_ollama_response(...)
+    ```
+
+*   **統一インターフェース**: プロバイダー固有の差異を吸収
+*   **エラーハンドリング**: プロバイダー別のエラー処理とフォールバック
+
+## コンポーネント間の関係（実装済み）
+
+*   **フロントエンド ↔ バックエンド**: 
+    - HTTP REST APIによる基本通信（実装完了）
+    - WebSocket/SSEによるリアルタイム通信（今後実装予定）
+
+*   **バックエンド ↔ LLMサービス**: 
+    - 統一インターフェースによる複数プロバイダー対応（実装完了）
+    - 非同期処理による効率的なAPI呼び出し（実装完了）
+
+*   **バックエンド ↔ データベース**: 
+    - SQLAlchemyによる非同期ORM操作（実装完了）
+    - Alembicによるマイグレーション管理（設定完了）
+
+## 重要な実装パス（完了済み）
+
+*   **メッセージの保存と取得**: 
+    - 親子関係を持つメッセージの正確な保存
+    - 選択されたブランチに基づく会話履歴の効率的な取得
+    - ツリー構造の再帰的な構築
+
+*   **ツリー構造の構築と表示**: 
+    - データベースから取得した`parent_id`情報を用いたツリー再構築
+    - React Flowによる視覚的なツリー表現
+    - ノード選択とブランチ切り替えの実装
+
+*   **LLMコンテキスト管理**: 
+    - 選択されたブランチのコンテキスト抽出
+    - `max_tokens`制約内でのメッセージtruncate
+    - プロバイダー固有のメッセージフォーマット変換
+
+## 設計原則
+
+*   **関心の分離**: フロントエンドとバックエンドの明確な責任分担
+*   **拡張性**: 新しいLLMプロバイダーの容易な追加
+*   **型安全性**: TypeScript（フロントエンド）とPydantic（バックエンド）による型チェック
+*   **非同期処理**: パフォーマンス向上のための非同期パターンの活用
+*   **エラー耐性**: 各層でのエラーハンドリングとユーザーフレンドリーなエラー表示
+
+## 今後の拡張ポイント
+
+*   **リアルタイム通信**: WebSocket/SSEによるストリーミング応答
+*   **認証・認可**: ユーザー管理とセキュリティ機能
+*   **キャッシュ**: 応答の高速化とコスト削減
+*   **監視・ログ**: システムの健全性監視とデバッグ支援
