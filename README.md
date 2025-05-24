@@ -19,6 +19,7 @@ This is a chat application that allows you to have conversations with LLMs (Lang
     ```bash
     git clone <repository_url>
     cd llm-node-chat
+    npm install
     ```
 
 2.  Install backend dependencies:
