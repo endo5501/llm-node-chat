@@ -2,6 +2,8 @@
 
 This is a chat application that allows you to have conversations with LLMs (Language Model Models) and branch off from previous turns (nodes) in the conversation. Unlike typical chat applications, you can go back to a previous point in the conversation and start a new flow from there.
 
+![alt text](images/image.png)
+
 ## Features
 
 *   **Branching Conversations**: Create new conversation branches from any previous turn.
@@ -25,7 +27,7 @@ This is a chat application that allows you to have conversations with LLMs (Lang
     cd backend
     uv venv
     source .venv/bin/activate
-    uv pip install -r requirements.txt
+    uv sync
     cd ..
     ```
 
