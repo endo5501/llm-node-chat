@@ -2,10 +2,13 @@ export default function Home() {
   return (
     <div className="flex h-screen">
       {/* 左側サイドバー */}
-      <aside className="w-64 bg-gray-100 p-4 border-r border-gray-200">
+      <aside className="w-64 bg-gray-100 p-4 border-r border-gray-200 flex flex-col">
         <h2 className="text-xl font-bold mb-4">チャット履歴</h2>
         {/* ここにチャット履歴一覧を配置 */}
-        <div className="absolute bottom-4 left-4 right-4">
+        <div className="flex-1">
+          {/* チャット履歴リストがここに入る */}
+        </div>
+        <div className="mt-4">
           <button className="w-full bg-blue-500 text-white py-2 px-4 rounded mb-2">
             新規チャット開始
           </button>
