@@ -4,6 +4,7 @@ import { Sidebar } from '@/components/Sidebar';
 import { MessageList } from '@/components/MessageList';
 import { MessageInput } from '@/components/MessageInput';
 import { ConversationTree } from '@/components/ConversationTree';
+import { SettingsModal } from '@/components/SettingsModal';
 
 export default function Home() {
   return (
@@ -29,6 +30,9 @@ export default function Home() {
           <ConversationTree />
         </div>
       </aside>
+
+      {/* 設定モーダル */}
+      <SettingsModal />
     </div>
   );
 }

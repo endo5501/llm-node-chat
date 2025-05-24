@@ -2,9 +2,11 @@
 
 import React, { useState } from 'react';
 import { useConversationStore } from '@/store/conversationStore';
+import { useSettingsStore } from '@/store/settingsStore';
 
 export const Sidebar: React.FC = () => {
   const { clearConversation } = useConversationStore();
+  const { openSettings } = useSettingsStore();
   const [chatHistory] = useState<Array<{ id: string; title: string; lastMessage: string }>>([
     // ダミーデータ - 後でデータベースから取得
     { id: '1', title: 'チャット 1', lastMessage: 'こんにちは' },
@@ -21,8 +23,7 @@ export const Sidebar: React.FC = () => {
   };
 
   const handleSettings = () => {
-    // TODO: 設定モーダルを開く
-    console.log('設定を開く');
+    openSettings();
   };
 
   return (
