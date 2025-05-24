@@ -16,9 +16,33 @@ class LLMService:
     """LLMプロバイダーとの統合サービス"""
     
     def __init__(self):
-        self.openai_client = None
-        self.anthropic_client = None
-        self.gemini_client = None
+        self.clients = {}  # プロバイダーIDごとにクライアントをキャッシュ
+    
+    def _get_provider_type(self, provider: LLMProvider) -> str:
+        """プロバイダーの種類を判定"""
+        name_lower = provider.name.lower()
+        
+        if "openai" in name_lower or "gpt" in name_lower:
+            return "openai"
+        elif "anthropic" in name_lower or "claude" in name_lower:
+            return "anthropic"
+        elif "gemini" in name_lower or "google" in name_lower:
+            return "gemini"
+        elif "ollama" in name_lower:
+            return "ollama"
+        else:
+            # モデル名からも判定を試行
+            model_lower = provider.model_name.lower()
+            if "gpt" in model_lower:
+                return "openai"
+            elif "claude" in model_lower:
+                return "anthropic"
+            elif "gemini" in model_lower:
+                return "gemini"
+            elif "llama" in model_lower or "qwen" in model_lower:
+                return "ollama"
+            else:
+                raise ValueError(f"Cannot determine provider type for: {provider.name} with model: {provider.model_name}")
     
     async def generate_response(
         self,
@@ -28,32 +52,34 @@ class LLMService:
     ) -> str:
         """LLMからの応答を生成"""
         
+        provider_type = self._get_provider_type(provider)
+        
         # メッセージを適切な形式に変換
-        formatted_messages = self._format_messages_for_provider(provider.name, messages)
+        formatted_messages = self._format_messages_for_provider(provider_type, messages)
         
         try:
-            if "openai" in provider.name.lower():
+            if provider_type == "openai":
                 return await self._generate_openai_response(
                     provider, formatted_messages, max_tokens
                 )
-            elif "anthropic" in provider.name.lower() or "claude" in provider.name.lower():
+            elif provider_type == "anthropic":
                 return await self._generate_anthropic_response(
                     provider, formatted_messages, max_tokens
                 )
-            elif "gemini" in provider.name.lower():
+            elif provider_type == "gemini":
                 return await self._generate_gemini_response(
                     provider, formatted_messages, max_tokens
                 )
-            elif "ollama" in provider.name.lower():
+            elif provider_type == "ollama":
                 return await self._generate_ollama_response(
                     provider, formatted_messages, max_tokens
                 )
             else:
-                raise ValueError(f"Unsupported provider: {provider.name}")
+                raise ValueError(f"Unsupported provider type: {provider_type}")
                 
         except Exception as e:
             # エラーハンドリング - 実際のアプリケーションではより詳細なログを記録
-            print(f"Error generating response from {provider.name}: {str(e)}")
+            print(f"Error generating response from {provider.name} ({provider_type}): {str(e)}")
             return f"申し訳ございません。{provider.name}からの応答生成中にエラーが発生しました。"
     
     def _format_messages_for_provider(
@@ -83,10 +109,17 @@ class LLMService:
         max_tokens: int
     ) -> str:
         """OpenAI APIからの応答生成"""
-        if not self.openai_client:
-            self.openai_client = openai.AsyncOpenAI(api_key=provider.api_key)
+        # プロバイダーごとにクライアントをキャッシュ
+        client_key = f"openai_{provider.id}"
+        if client_key not in self.clients:
+            base_url = provider.api_url if provider.api_url else None
+            self.clients[client_key] = openai.AsyncOpenAI(
+                api_key=provider.api_key,
+                base_url=base_url
+            )
         
-        response = await self.openai_client.chat.completions.create(
+        client = self.clients[client_key]
+        response = await client.chat.completions.create(
             model=provider.model_name,
             messages=messages,
             max_tokens=max_tokens,
@@ -102,8 +135,12 @@ class LLMService:
         max_tokens: int
     ) -> str:
         """Anthropic APIからの応答生成"""
-        if not self.anthropic_client:
-            self.anthropic_client = anthropic.AsyncAnthropic(api_key=provider.api_key)
+        # プロバイダーごとにクライアントをキャッシュ
+        client_key = f"anthropic_{provider.id}"
+        if client_key not in self.clients:
+            self.clients[client_key] = anthropic.AsyncAnthropic(api_key=provider.api_key)
+        
+        client = self.clients[client_key]
         
         # systemメッセージを分離
         system_message = ""
@@ -115,7 +152,7 @@ class LLMService:
             else:
                 user_messages.append(msg)
         
-        response = await self.anthropic_client.messages.create(
+        response = await client.messages.create(
             model=provider.model_name,
             max_tokens=max_tokens,
             system=system_message if system_message else "You are a helpful assistant.",

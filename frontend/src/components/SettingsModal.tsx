@@ -8,6 +8,8 @@ export const SettingsModal: React.FC = () => {
     isSettingsOpen,
     providers,
     activeProviderId,
+    isLoading,
+    error,
     closeSettings,
     updateProvider,
     setActiveProvider,
@@ -23,9 +25,9 @@ export const SettingsModal: React.FC = () => {
     setFormData(provider);
   };
 
-  const handleSaveProvider = () => {
+  const handleSaveProvider = async () => {
     if (editingProvider && formData) {
-      updateProvider(editingProvider, formData);
+      await updateProvider(editingProvider, formData);
       setEditingProvider(null);
       setFormData({});
     }
@@ -44,11 +46,9 @@ export const SettingsModal: React.FC = () => {
     switch (type) {
       case 'openai':
         return '🤖';
-      case 'azure':
-        return '☁️';
       case 'gemini':
         return '💎';
-      case 'claude':
+      case 'anthropic':
         return '🧠';
       case 'ollama':
         return '🦙';
@@ -62,7 +62,7 @@ export const SettingsModal: React.FC = () => {
   };
 
   const needsBaseUrl = (type: LLMProvider['type']) => {
-    return type === 'ollama' || type === 'azure';
+    return type === 'ollama';
   };
 
   return (
@@ -83,6 +83,19 @@ export const SettingsModal: React.FC = () => {
 
         {/* コンテンツ */}
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+          {isLoading && (
+            <div className="text-center py-4">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+              <p className="mt-2 text-gray-600">読み込み中...</p>
+            </div>
+          )}
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+              <p className="text-red-800">{error}</p>
+            </div>
+          )}
+
           <div className="space-y-6">
             {/* アクティブプロバイダー選択 */}
             <div>
@@ -104,6 +117,7 @@ export const SettingsModal: React.FC = () => {
                       checked={activeProviderId === provider.id}
                       onChange={() => setActiveProvider(provider.id)}
                       className="mr-3 text-blue-600 focus:ring-blue-500"
+                      disabled={isLoading}
                     />
                     <div className="flex items-center space-x-3">
                       <span className="text-2xl">{getProviderIcon(provider.type)}</span>
@@ -115,7 +129,7 @@ export const SettingsModal: React.FC = () => {
                   </label>
                 ))}
               </div>
-              {providers.filter(p => p.enabled).length === 0 && (
+              {providers.filter(p => p.enabled).length === 0 && !isLoading && (
                 <p className="text-gray-500 text-sm">有効なプロバイダーがありません。下記でプロバイダーを設定してください。</p>
               )}
             </div>
@@ -135,18 +149,10 @@ export const SettingsModal: React.FC = () => {
                         </div>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <label className="flex items-center space-x-2">
-                          <input
-                            type="checkbox"
-                            checked={provider.enabled}
-                            onChange={(e) => updateProvider(provider.id, { enabled: e.target.checked })}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                          />
-                          <span className="text-sm text-gray-600">有効</span>
-                        </label>
                         <button
                           onClick={() => handleEditProvider(provider)}
                           className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
+                          disabled={isLoading}
                         >
                           編集
                         </button>
@@ -164,6 +170,7 @@ export const SettingsModal: React.FC = () => {
                             value={formData.name || ''}
                             onChange={(e) => handleInputChange('name', e.target.value)}
                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            disabled={isLoading}
                           />
                         </div>
 
@@ -176,6 +183,7 @@ export const SettingsModal: React.FC = () => {
                             value={formData.model || ''}
                             onChange={(e) => handleInputChange('model', e.target.value)}
                             className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            disabled={isLoading}
                           />
                         </div>
 
@@ -190,6 +198,7 @@ export const SettingsModal: React.FC = () => {
                               onChange={(e) => handleInputChange('apiKey', e.target.value)}
                               placeholder="APIキーを入力してください"
                               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              disabled={isLoading}
                             />
                           </div>
                         )}
@@ -203,12 +212,9 @@ export const SettingsModal: React.FC = () => {
                               type="url"
                               value={formData.baseUrl || ''}
                               onChange={(e) => handleInputChange('baseUrl', e.target.value)}
-                              placeholder={
-                                provider.type === 'azure' 
-                                  ? "https://your-resource.openai.azure.com/"
-                                  : "http://localhost:11434"
-                              }
+                              placeholder="http://localhost:11434"
                               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              disabled={isLoading}
                             />
                           </div>
                         )}
@@ -216,13 +222,15 @@ export const SettingsModal: React.FC = () => {
                         <div className="flex space-x-2 pt-2">
                           <button
                             onClick={handleSaveProvider}
-                            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors text-sm"
+                            className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors text-sm disabled:opacity-50"
+                            disabled={isLoading}
                           >
-                            保存
+                            {isLoading ? '保存中...' : '保存'}
                           </button>
                           <button
                             onClick={handleCancelEdit}
                             className="px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300 transition-colors text-sm"
+                            disabled={isLoading}
                           >
                             キャンセル
                           </button>

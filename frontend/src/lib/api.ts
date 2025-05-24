@@ -91,6 +91,11 @@ class ApiClient {
         );
       }
 
+      // 204 No Content の場合はJSONを解析しない
+      if (response.status === 204) {
+        return {} as T;
+      }
+
       const data = await response.json();
       console.log(`[API] Response data:`, data);
       return data;
