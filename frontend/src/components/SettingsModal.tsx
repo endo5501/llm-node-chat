@@ -240,7 +240,7 @@ export const SettingsModal: React.FC = () => {
                               value={formData.baseUrl || ''}
                               onChange={(e) => handleInputChange('baseUrl', e.target.value)}
                               placeholder={
-                                config.type === 'azure' 
+                                config.type === 'azure'
                                   ? "https://your-resource.openai.azure.com/"
                                   : "http://localhost:11434"
                               }
@@ -272,6 +272,15 @@ export const SettingsModal: React.FC = () => {
                 ))}
               </div>
             </div>
+            <button
+              onClick={() => {
+                closeSettings();
+                useSettingsStore.getState().clearLocalStorage();
+              }}
+              className="px-4 py-2 bg-red-500 text-white rounded-md hover:bg-red-600 transition-colors text-sm"
+            >
+              ローカルストレージをクリア
+            </button>
           </div>
         </div>
       </div>

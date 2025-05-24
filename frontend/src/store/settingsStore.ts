@@ -39,6 +39,7 @@ interface SettingsState {
   // Utility
   convertAPIProvider: (apiProvider: APILLMProvider) => LLMProvider;
   getOrCreateProvider: (config: LLMProviderConfig) => Promise<string>;
+  clearLocalStorage: () => void;
 }
 
 const defaultProviderConfigs: LLMProviderConfig[] = [
@@ -197,6 +198,13 @@ export const useSettingsStore = create<SettingsState>()(
         }
       },
 
+      clearLocalStorage: () => {
+        set(state => {
+          // @ts-expect-error: persist.clearStorage is not typed
+          persist.clearStorage('llm-chat-settings');
+          return { ...state, providerConfigs: defaultProviderConfigs, activeProviderId: null };
+        });
+      },
       convertAPIProvider: (apiProvider: APILLMProvider): LLMProvider => {
         // プロバイダー名からタイプを推定
         const name = apiProvider.name.toLowerCase();

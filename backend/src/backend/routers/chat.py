@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
-from typing import List
+from typing import List, Optional
 
 from ..database import get_db
 from ..models import Conversation, Message, LLMProvider
@@ -36,17 +36,11 @@ async def get_conversation_history(
     return messages
 
 
-async def get_active_llm_provider(db: AsyncSession) -> LLMProvider:
+async def get_active_llm_provider(db: AsyncSession) -> Optional[LLMProvider]:
     """アクティブなLLMプロバイダーを取得"""
     query = select(LLMProvider).where(LLMProvider.is_active == True)
     result = await db.execute(query)
     provider = result.scalar_one_or_none()
-    
-    if not provider:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No active LLM provider found. Please configure a provider first."
-        )
     
     return provider
 
@@ -71,6 +65,23 @@ async def send_message(
     
     # アクティブなLLMプロバイダーを取得
     provider = await get_active_llm_provider(db)
+    
+    if not provider:
+        # アクティブなプロバイダーがない場合はエラーを返す
+        error_message = Message(
+            conversation_id=chat_request.conversation_id,
+            parent_id=chat_request.parent_id,
+            role="assistant",
+            content="プロバイダーが選択されていません。設定画面でLLMプロバイダーを選択してください。"
+        )
+        db.add(error_message)
+        await db.commit()
+        await db.refresh(error_message)
+        
+        return ChatResponse(
+            user_message=MessageResponse.from_orm(user_message),
+            assistant_message=MessageResponse.from_orm(error_message)
+        )
     
     # ユーザーメッセージを保存
     user_message = Message(
