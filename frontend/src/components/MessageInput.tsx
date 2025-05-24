@@ -5,8 +5,14 @@ import { useConversationStore } from '@/store/conversationStore';
 
 export const MessageInput: React.FC = () => {
   const [input, setInput] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const { addMessage, currentNodeId } = useConversationStore();
+  const { 
+    sendMessageToAPI, 
+    createNewConversation,
+    currentNodeId, 
+    currentConversationId,
+    isLoading,
+    error 
+  } = useConversationStore();
 
   console.log('MessageInput rendered, currentNodeId:', currentNodeId);
 
@@ -24,33 +30,28 @@ export const MessageInput: React.FC = () => {
 
     const userMessage = input.trim();
     setInput('');
-    setIsLoading(true);
 
     try {
-      console.log('=== MessageInput Debug ===');
+      console.log('=== MessageInput API Integration ===');
+      console.log('Current conversation ID:', currentConversationId);
       console.log('Current node ID:', currentNodeId);
       console.log('User message:', userMessage);
       
-      // ユーザーメッセージを追加
-      const userMessageId = addMessage(currentNodeId, 'user', userMessage);
-      console.log('Created user message ID:', userMessageId);
+      // 会話が存在しない場合は新規作成
+      if (!currentConversationId) {
+        console.log('No active conversation, creating new one...');
+        await createNewConversation();
+      }
 
-      // TODO: ここで実際のLLM APIを呼び出す
-      // 現在はダミーレスポンスを生成
-      await new Promise(resolve => setTimeout(resolve, 1000)); // 1秒待機
+      // バックエンドAPIにメッセージを送信
+      await sendMessageToAPI(userMessage);
       
-      const dummyResponse = `これは「${userMessage}」に対するダミーレスポンスです。実際のLLM統合が完了すると、ここに本物のAI応答が表示されます。`;
-      
-      // AIレスポンスを追加
-      const assistantMessageId = addMessage(userMessageId, 'assistant', dummyResponse);
-      console.log('Created assistant message ID:', assistantMessageId);
-      console.log('=== End MessageInput Debug ===');
+      console.log('Message sent successfully to API');
+      console.log('=== End MessageInput API Integration ===');
     } catch (error) {
       console.error('メッセージ送信エラー:', error);
-      // エラーハンドリング
-      addMessage(currentNodeId, 'assistant', 'エラーが発生しました。もう一度お試しください。');
-    } finally {
-      setIsLoading(false);
+      // エラー表示（必要に応じてトーストやアラートを追加）
+      alert(`エラーが発生しました: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 

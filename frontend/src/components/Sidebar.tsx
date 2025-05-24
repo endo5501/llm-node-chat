@@ -1,25 +1,58 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect } from 'react';
 import { useConversationStore } from '@/store/conversationStore';
 import { useSettingsStore } from '@/store/settingsStore';
 
 export const Sidebar: React.FC = () => {
-  const { clearConversation } = useConversationStore();
+  const { 
+    conversations,
+    currentConversationId,
+    createNewConversation,
+    loadConversations,
+    loadConversationTree,
+    deleteConversation,
+    clearConversation,
+    isLoading 
+  } = useConversationStore();
   const { openSettings } = useSettingsStore();
-  const [chatHistory] = useState<Array<{ id: string; title: string; lastMessage: string }>>([
-    // ダミーデータ - 後でデータベースから取得
-    { id: '1', title: 'チャット 1', lastMessage: 'こんにちは' },
-    { id: '2', title: 'チャット 2', lastMessage: 'プログラミングについて' },
-  ]);
 
-  const handleNewChat = () => {
-    clearConversation();
+  // コンポーネントマウント時に会話一覧を読み込み
+  useEffect(() => {
+    loadConversations().catch(console.error);
+  }, [loadConversations]);
+
+  const handleNewChat = async () => {
+    try {
+      await createNewConversation();
+    } catch (error) {
+      console.error('新規チャット作成エラー:', error);
+      alert('新規チャットの作成に失敗しました');
+    }
   };
 
-  const handleChatSelect = (chatId: string) => {
-    // TODO: 選択されたチャットの履歴を読み込む
-    console.log('チャット選択:', chatId);
+  const handleChatSelect = async (chatId: string) => {
+    try {
+      await loadConversationTree(chatId);
+    } catch (error) {
+      console.error('チャット読み込みエラー:', error);
+      alert('チャットの読み込みに失敗しました');
+    }
+  };
+
+  const handleChatDelete = async (chatId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // 親のクリックイベントを防ぐ
+    
+    if (!confirm('このチャットを削除しますか？')) {
+      return;
+    }
+
+    try {
+      await deleteConversation(chatId);
+    } catch (error) {
+      console.error('チャット削除エラー:', error);
+      alert('チャットの削除に失敗しました');
+    }
   };
 
   const handleSettings = () => {
@@ -37,22 +70,53 @@ export const Sidebar: React.FC = () => {
       <div className="flex-1 overflow-y-auto">
         <div className="p-2">
           <h2 className="text-sm font-medium text-gray-600 mb-2 px-2">チャット履歴</h2>
-          <div className="space-y-1">
-            {chatHistory.map((chat) => (
-              <button
-                key={chat.id}
-                onClick={() => handleChatSelect(chat.id)}
-                className="w-full text-left p-2 rounded-lg hover:bg-gray-100 transition-colors duration-200"
-              >
-                <div className="font-medium text-sm text-gray-800 truncate">
-                  {chat.title}
+          {isLoading ? (
+            <div className="flex justify-center py-4">
+              <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {conversations.map((conversation) => (
+                <div
+                  key={conversation.id}
+                  className={`relative group rounded-lg transition-colors duration-200 ${
+                    currentConversationId === conversation.id 
+                      ? 'bg-blue-100 border border-blue-300' 
+                      : 'hover:bg-gray-100'
+                  }`}
+                >
+                  <button
+                    onClick={() => handleChatSelect(conversation.id)}
+                    className="w-full text-left p-2 rounded-lg"
+                  >
+                    <div className="font-medium text-sm text-gray-800 truncate pr-8">
+                      {conversation.title}
+                    </div>
+                    <div className="text-xs text-gray-500 truncate mt-1">
+                      {new Date(conversation.updated_at).toLocaleDateString('ja-JP')}
+                    </div>
+                  </button>
+                  
+                  {/* 削除ボタン */}
+                  <button
+                    onClick={(e) => handleChatDelete(conversation.id, e)}
+                    className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 p-1 rounded hover:bg-red-100 text-red-500"
+                    title="削除"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
                 </div>
-                <div className="text-xs text-gray-500 truncate mt-1">
-                  {chat.lastMessage}
+              ))}
+              
+              {conversations.length === 0 && (
+                <div className="text-center py-8 text-gray-500 text-sm">
+                  チャット履歴がありません
                 </div>
-              </button>
-            ))}
-          </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
