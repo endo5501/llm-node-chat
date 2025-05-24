@@ -24,6 +24,8 @@ class LLMService:
         
         if "openai" in name_lower or "gpt" in name_lower:
             return "openai"
+        elif "azure" in name_lower:
+            return "openai"  # Azure OpenAI は OpenAI API と同じ
         elif "anthropic" in name_lower or "claude" in name_lower:
             return "anthropic"
         elif "gemini" in name_lower or "google" in name_lower:
@@ -108,10 +110,14 @@ class LLMService:
         messages: List[Dict[str, str]],
         max_tokens: int
     ) -> str:
-        """OpenAI APIからの応答生成"""
+        """OpenAI/Azure OpenAI APIからの応答生成"""
         # プロバイダーごとにクライアントをキャッシュ
         client_key = f"openai_{provider.id}"
         if client_key not in self.clients:
+            # APIキーが無効な場合のチェック
+            if not provider.api_key or provider.api_key == "your-api-key-here":
+                raise ValueError(f"Invalid API key for {provider.name}. Please set a valid API key in settings.")
+            
             base_url = provider.api_url if provider.api_url else None
             self.clients[client_key] = openai.AsyncOpenAI(
                 api_key=provider.api_key,
@@ -138,6 +144,9 @@ class LLMService:
         # プロバイダーごとにクライアントをキャッシュ
         client_key = f"anthropic_{provider.id}"
         if client_key not in self.clients:
+            if not provider.api_key or provider.api_key == "your-api-key-here":
+                raise ValueError(f"Invalid API key for {provider.name}. Please set a valid API key in settings.")
+            
             self.clients[client_key] = anthropic.AsyncAnthropic(api_key=provider.api_key)
         
         client = self.clients[client_key]
@@ -168,6 +177,9 @@ class LLMService:
         max_tokens: int
     ) -> str:
         """Google Gemini APIからの応答生成"""
+        if not provider.api_key or provider.api_key == "your-api-key-here":
+            raise ValueError(f"Invalid API key for {provider.name}. Please set a valid API key in settings.")
+        
         genai.configure(api_key=provider.api_key)
         model = genai.GenerativeModel(provider.model_name)
         

@@ -1,33 +1,34 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useSettingsStore, LLMProvider } from '@/store/settingsStore';
+import { useSettingsStore, LLMProviderConfig } from '@/store/settingsStore';
 
 export const SettingsModal: React.FC = () => {
   const {
     isSettingsOpen,
-    providers,
+    providerConfigs,
+    activeProviders,
     activeProviderId,
     isLoading,
     error,
     closeSettings,
-    updateProvider,
+    updateProviderConfig,
     setActiveProvider,
   } = useSettingsStore();
 
   const [editingProvider, setEditingProvider] = useState<string | null>(null);
-  const [formData, setFormData] = useState<Partial<LLMProvider>>({});
+  const [formData, setFormData] = useState<Partial<LLMProviderConfig>>({});
 
   if (!isSettingsOpen) return null;
 
-  const handleEditProvider = (provider: LLMProvider) => {
-    setEditingProvider(provider.id);
-    setFormData(provider);
+  const handleEditProvider = (config: LLMProviderConfig) => {
+    setEditingProvider(config.type);
+    setFormData(config);
   };
 
   const handleSaveProvider = async () => {
     if (editingProvider && formData) {
-      await updateProvider(editingProvider, formData);
+      await updateProviderConfig(editingProvider as LLMProviderConfig['type'], formData);
       setEditingProvider(null);
       setFormData({});
     }
@@ -38,14 +39,16 @@ export const SettingsModal: React.FC = () => {
     setFormData({});
   };
 
-  const handleInputChange = (field: keyof LLMProvider, value: string | boolean) => {
+  const handleInputChange = (field: keyof LLMProviderConfig, value: string | boolean) => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const getProviderIcon = (type: LLMProvider['type']) => {
+  const getProviderIcon = (type: LLMProviderConfig['type']) => {
     switch (type) {
       case 'openai':
         return '🤖';
+      case 'azure':
+        return '☁️';
       case 'gemini':
         return '💎';
       case 'anthropic':
@@ -57,12 +60,21 @@ export const SettingsModal: React.FC = () => {
     }
   };
 
-  const needsApiKey = (type: LLMProvider['type']) => {
+  const needsApiKey = (type: LLMProviderConfig['type']) => {
     return type !== 'ollama';
   };
 
-  const needsBaseUrl = (type: LLMProvider['type']) => {
-    return type === 'ollama';
+  const needsBaseUrl = (type: LLMProviderConfig['type']) => {
+    return type === 'ollama' || type === 'azure';
+  };
+
+  const getActiveProviderForType = (type: LLMProviderConfig['type']) => {
+    return activeProviders.find(p => p.type === type);
+  };
+
+  const isActiveProvider = (type: LLMProviderConfig['type']) => {
+    const provider = getActiveProviderForType(type);
+    return provider && activeProviderId === provider.id;
   };
 
   return (
@@ -101,35 +113,40 @@ export const SettingsModal: React.FC = () => {
             <div>
               <h3 className="text-lg font-medium text-gray-800 mb-4">アクティブなLLMプロバイダー</h3>
               <div className="space-y-2">
-                {providers.filter(p => p.enabled).map((provider) => (
-                  <label
-                    key={provider.id}
-                    className={`flex items-center p-3 rounded-lg border-2 cursor-pointer transition-colors ${
-                      activeProviderId === provider.id
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="activeProvider"
-                      value={provider.id}
-                      checked={activeProviderId === provider.id}
-                      onChange={() => setActiveProvider(provider.id)}
-                      className="mr-3 text-blue-600 focus:ring-blue-500"
-                      disabled={isLoading}
-                    />
-                    <div className="flex items-center space-x-3">
-                      <span className="text-2xl">{getProviderIcon(provider.type)}</span>
-                      <div>
-                        <div className="font-medium text-gray-800">{provider.name}</div>
-                        <div className="text-sm text-gray-500">{provider.model}</div>
+                {providerConfigs.filter(config => config.enabled).map((config) => {
+                  const provider = getActiveProviderForType(config.type);
+                  if (!provider) return null;
+                  
+                  return (
+                    <label
+                      key={config.type}
+                      className={`flex items-center p-3 rounded-lg border-2 cursor-pointer transition-colors ${
+                        isActiveProvider(config.type)
+                          ? 'border-blue-500 bg-blue-50'
+                          : 'border-gray-200 hover:border-gray-300'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="activeProvider"
+                        value={provider.id}
+                        checked={isActiveProvider(config.type)}
+                        onChange={() => setActiveProvider(provider.id)}
+                        className="mr-3 text-blue-600 focus:ring-blue-500"
+                        disabled={isLoading}
+                      />
+                      <div className="flex items-center space-x-3">
+                        <span className="text-2xl">{getProviderIcon(config.type)}</span>
+                        <div>
+                          <div className="font-medium text-gray-800">{config.name}</div>
+                          <div className="text-sm text-gray-500">{config.model}</div>
+                        </div>
                       </div>
-                    </div>
-                  </label>
-                ))}
+                    </label>
+                  );
+                })}
               </div>
-              {providers.filter(p => p.enabled).length === 0 && !isLoading && (
+              {providerConfigs.filter(config => config.enabled).length === 0 && !isLoading && (
                 <p className="text-gray-500 text-sm">有効なプロバイダーがありません。下記でプロバイダーを設定してください。</p>
               )}
             </div>
@@ -138,19 +155,29 @@ export const SettingsModal: React.FC = () => {
             <div>
               <h3 className="text-lg font-medium text-gray-800 mb-4">LLMプロバイダー設定</h3>
               <div className="space-y-4">
-                {providers.map((provider) => (
-                  <div key={provider.id} className="border border-gray-200 rounded-lg p-4">
+                {providerConfigs.map((config) => (
+                  <div key={config.type} className="border border-gray-200 rounded-lg p-4">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center space-x-3">
-                        <span className="text-xl">{getProviderIcon(provider.type)}</span>
+                        <span className="text-xl">{getProviderIcon(config.type)}</span>
                         <div>
-                          <h4 className="font-medium text-gray-800">{provider.name}</h4>
-                          <p className="text-sm text-gray-500">{provider.model}</p>
+                          <h4 className="font-medium text-gray-800">{config.name}</h4>
+                          <p className="text-sm text-gray-500">{config.model}</p>
                         </div>
                       </div>
                       <div className="flex items-center space-x-2">
+                        <label className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            checked={config.enabled}
+                            onChange={(e) => updateProviderConfig(config.type, { enabled: e.target.checked })}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            disabled={isLoading}
+                          />
+                          <span className="text-sm text-gray-600">有効</span>
+                        </label>
                         <button
-                          onClick={() => handleEditProvider(provider)}
+                          onClick={() => handleEditProvider(config)}
                           className="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
                           disabled={isLoading}
                         >
@@ -159,7 +186,7 @@ export const SettingsModal: React.FC = () => {
                       </div>
                     </div>
 
-                    {editingProvider === provider.id && (
+                    {editingProvider === config.type && (
                       <div className="mt-4 space-y-3 border-t border-gray-200 pt-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -187,7 +214,7 @@ export const SettingsModal: React.FC = () => {
                           />
                         </div>
 
-                        {needsApiKey(provider.type) && (
+                        {needsApiKey(config.type) && (
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
                               APIキー
@@ -203,7 +230,7 @@ export const SettingsModal: React.FC = () => {
                           </div>
                         )}
 
-                        {needsBaseUrl(provider.type) && (
+                        {needsBaseUrl(config.type) && (
                           <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">
                               ベースURL
@@ -212,7 +239,11 @@ export const SettingsModal: React.FC = () => {
                               type="url"
                               value={formData.baseUrl || ''}
                               onChange={(e) => handleInputChange('baseUrl', e.target.value)}
-                              placeholder="http://localhost:11434"
+                              placeholder={
+                                config.type === 'azure' 
+                                  ? "https://your-resource.openai.azure.com/"
+                                  : "http://localhost:11434"
+                              }
                               className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                               disabled={isLoading}
                             />

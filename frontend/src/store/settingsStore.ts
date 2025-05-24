@@ -2,10 +2,19 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { apiClient, type LLMProvider as APILLMProvider } from '@/lib/api';
 
+export interface LLMProviderConfig {
+  type: 'openai' | 'gemini' | 'anthropic' | 'ollama' | 'azure';
+  name: string;
+  model: string;
+  apiKey?: string;
+  baseUrl?: string;
+  enabled: boolean;
+}
+
 export interface LLMProvider {
   id: string;
   name: string;
-  type: 'openai' | 'gemini' | 'anthropic' | 'ollama';
+  type: 'openai' | 'gemini' | 'anthropic' | 'ollama' | 'azure';
   apiKey?: string;
   baseUrl?: string;
   model?: string;
@@ -14,7 +23,8 @@ export interface LLMProvider {
 
 interface SettingsState {
   isSettingsOpen: boolean;
-  providers: LLMProvider[];
+  providerConfigs: LLMProviderConfig[];
+  activeProviders: LLMProvider[];
   activeProviderId: string | null;
   isLoading: boolean;
   error: string | null;
@@ -23,22 +33,56 @@ interface SettingsState {
   openSettings: () => void;
   closeSettings: () => void;
   loadProviders: () => Promise<void>;
-  updateProvider: (id: string, updates: Partial<LLMProvider>) => Promise<void>;
-  addProvider: (provider: Omit<LLMProvider, 'id'>) => Promise<void>;
-  removeProvider: (id: string) => void;
+  updateProviderConfig: (type: LLMProviderConfig['type'], updates: Partial<LLMProviderConfig>) => Promise<void>;
   setActiveProvider: (id: string) => Promise<void>;
   
   // Utility
   convertAPIProvider: (apiProvider: APILLMProvider) => LLMProvider;
+  getOrCreateProvider: (config: LLMProviderConfig) => Promise<string>;
 }
 
-const SETTINGS_VERSION = 3; // バージョンを上げて古いデータをリセット
+const defaultProviderConfigs: LLMProviderConfig[] = [
+  {
+    type: 'openai',
+    name: 'OpenAI',
+    model: 'gpt-4o',
+    enabled: false,
+  },
+  {
+    type: 'azure',
+    name: 'Azure OpenAI',
+    model: 'gpt-4',
+    enabled: false,
+  },
+  {
+    type: 'gemini',
+    name: 'Google Gemini',
+    model: 'gemini-pro',
+    enabled: false,
+  },
+  {
+    type: 'anthropic',
+    name: 'Anthropic Claude',
+    model: 'claude-3-sonnet-20240229',
+    enabled: false,
+  },
+  {
+    type: 'ollama',
+    name: 'Ollama (Local)',
+    model: 'llama2:latest',
+    baseUrl: 'http://localhost:11434',
+    enabled: true,
+  },
+];
+
+const SETTINGS_VERSION = 4; // バージョンを上げて古いデータをリセット
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set, get) => ({
       isSettingsOpen: false,
-      providers: [],
+      providerConfigs: defaultProviderConfigs,
+      activeProviders: [],
       activeProviderId: null,
       isLoading: false,
       error: null,
@@ -61,7 +105,7 @@ export const useSettingsStore = create<SettingsState>()(
           const providers = apiProviders.map(convertAPIProvider);
           
           set({
-            providers,
+            activeProviders: providers,
             activeProviderId: activeProvider?.id || null,
             isLoading: false,
           });
@@ -73,64 +117,35 @@ export const useSettingsStore = create<SettingsState>()(
         }
       },
 
-      updateProvider: async (id, updates) => {
+      updateProviderConfig: async (type, updates) => {
         set({ isLoading: true, error: null });
         try {
-          // バックエンドAPIを更新
-          const updateData: any = {};
-          if (updates.model) updateData.model_name = updates.model;
-          if (updates.apiKey) updateData.api_key = updates.apiKey;
-          if (updates.baseUrl) updateData.base_url = updates.baseUrl;
-          
-          await apiClient.updateProvider(id, updateData);
-          
-          // ローカル状態を更新
+          // ローカル設定を更新
           set((state) => ({
-            providers: state.providers.map((provider) =>
-              provider.id === id ? { ...provider, ...updates } : provider
+            providerConfigs: state.providerConfigs.map((config) =>
+              config.type === type ? { ...config, ...updates } : config
             ),
-            isLoading: false,
           }));
+
+          const updatedConfig = get().providerConfigs.find(c => c.type === type);
+          if (!updatedConfig) return;
+
+          // 有効になった場合、バックエンドにプロバイダーを作成/更新
+          if (updatedConfig.enabled) {
+            const providerId = await get().getOrCreateProvider(updatedConfig);
+            
+            // アクティブプロバイダーを更新
+            await get().setActiveProvider(providerId);
+          }
+
+          set({ isLoading: false });
         } catch (error) {
           set({
-            error: error instanceof Error ? error.message : 'Failed to update provider',
+            error: error instanceof Error ? error.message : 'Failed to update provider config',
             isLoading: false,
           });
         }
       },
-
-      addProvider: async (provider) => {
-        set({ isLoading: true, error: null });
-        try {
-          const newProvider = await apiClient.createProvider({
-            name: provider.name,
-            provider_type: provider.type,
-            model_name: provider.model || '',
-            api_key: provider.apiKey,
-            base_url: provider.baseUrl,
-          });
-          
-          const { convertAPIProvider } = get();
-          const convertedProvider = convertAPIProvider(newProvider);
-          
-          set((state) => ({
-            providers: [...state.providers, convertedProvider],
-            isLoading: false,
-          }));
-        } catch (error) {
-          set({
-            error: error instanceof Error ? error.message : 'Failed to add provider',
-            isLoading: false,
-          });
-        }
-      },
-
-      removeProvider: (id) =>
-        set((state) => ({
-          providers: state.providers.filter((provider) => provider.id !== id),
-          activeProviderId:
-            state.activeProviderId === id ? null : state.activeProviderId,
-        })),
 
       setActiveProvider: async (id) => {
         set({ isLoading: true, error: null });
@@ -148,6 +163,40 @@ export const useSettingsStore = create<SettingsState>()(
         }
       },
 
+      getOrCreateProvider: async (config: LLMProviderConfig): Promise<string> => {
+        // 既存のプロバイダーを検索
+        const existingProvider = get().activeProviders.find(p => p.type === config.type);
+        
+        if (existingProvider) {
+          // 既存プロバイダーを更新
+          const updateData: any = {};
+          if (config.model) updateData.model_name = config.model;
+          if (config.apiKey) updateData.api_key = config.apiKey;
+          if (config.baseUrl) updateData.base_url = config.baseUrl;
+          
+          await apiClient.updateProvider(existingProvider.id, updateData);
+          return existingProvider.id;
+        } else {
+          // 新しいプロバイダーを作成
+          const newProvider = await apiClient.createProvider({
+            name: config.name,
+            provider_type: config.type === 'azure' ? 'openai' : config.type, // Azure は OpenAI として扱う
+            model_name: config.model,
+            api_key: config.apiKey,
+            base_url: config.baseUrl,
+          });
+          
+          const { convertAPIProvider } = get();
+          const convertedProvider = convertAPIProvider(newProvider);
+          
+          set((state) => ({
+            activeProviders: [...state.activeProviders, convertedProvider],
+          }));
+          
+          return newProvider.id;
+        }
+      },
+
       convertAPIProvider: (apiProvider: APILLMProvider): LLMProvider => {
         // プロバイダー名からタイプを推定
         const name = apiProvider.name.toLowerCase();
@@ -155,6 +204,8 @@ export const useSettingsStore = create<SettingsState>()(
         
         if (name.includes('openai') || name.includes('gpt')) {
           type = 'openai';
+        } else if (name.includes('azure')) {
+          type = 'azure';
         } else if (name.includes('claude') || name.includes('anthropic')) {
           type = 'anthropic';
         } else if (name.includes('gemini') || name.includes('google')) {
@@ -176,17 +227,21 @@ export const useSettingsStore = create<SettingsState>()(
       name: 'llm-chat-settings',
       version: SETTINGS_VERSION,
       partialize: (state) => ({
-        // APIから取得するため、永続化は最小限に
+        providerConfigs: state.providerConfigs,
         activeProviderId: state.activeProviderId,
       }),
       migrate: (persistedState: unknown, version: number) => {
         // バージョンが古い場合はデフォルト設定にリセット
         if (version < SETTINGS_VERSION) {
           return {
+            providerConfigs: defaultProviderConfigs,
             activeProviderId: null,
           };
         }
-        return persistedState as { activeProviderId: string | null };
+        return persistedState as { 
+          providerConfigs: LLMProviderConfig[]; 
+          activeProviderId: string | null 
+        };
       },
     }
   )
