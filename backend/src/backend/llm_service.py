@@ -1,0 +1,205 @@
+import openai
+import anthropic
+import google.generativeai as genai
+import httpx
+from typing import List, Dict, Any, Optional
+import os
+from dotenv import load_dotenv
+
+from .models import LLMProvider
+from .schemas import MessageResponse
+
+load_dotenv()
+
+
+class LLMService:
+    """LLMプロバイダーとの統合サービス"""
+    
+    def __init__(self):
+        self.openai_client = None
+        self.anthropic_client = None
+        self.gemini_client = None
+    
+    async def generate_response(
+        self,
+        provider: LLMProvider,
+        messages: List[MessageResponse],
+        max_tokens: int = 2000
+    ) -> str:
+        """LLMからの応答を生成"""
+        
+        # メッセージを適切な形式に変換
+        formatted_messages = self._format_messages_for_provider(provider.name, messages)
+        
+        try:
+            if provider.name == "openai":
+                return await self._generate_openai_response(
+                    provider, formatted_messages, max_tokens
+                )
+            elif provider.name == "anthropic":
+                return await self._generate_anthropic_response(
+                    provider, formatted_messages, max_tokens
+                )
+            elif provider.name == "gemini":
+                return await self._generate_gemini_response(
+                    provider, formatted_messages, max_tokens
+                )
+            elif provider.name == "ollama":
+                return await self._generate_ollama_response(
+                    provider, formatted_messages, max_tokens
+                )
+            else:
+                raise ValueError(f"Unsupported provider: {provider.name}")
+                
+        except Exception as e:
+            # エラーハンドリング - 実際のアプリケーションではより詳細なログを記録
+            print(f"Error generating response from {provider.name}: {str(e)}")
+            return f"申し訳ございません。{provider.name}からの応答生成中にエラーが発生しました。"
+    
+    def _format_messages_for_provider(
+        self, 
+        provider_name: str, 
+        messages: List[MessageResponse]
+    ) -> List[Dict[str, str]]:
+        """プロバイダー固有の形式にメッセージを変換"""
+        formatted = []
+        
+        for msg in messages:
+            if provider_name == "anthropic" and msg.role == "system":
+                # Anthropicはsystemメッセージを別途処理
+                continue
+            
+            formatted.append({
+                "role": msg.role,
+                "content": msg.content
+            })
+        
+        return formatted
+    
+    async def _generate_openai_response(
+        self,
+        provider: LLMProvider,
+        messages: List[Dict[str, str]],
+        max_tokens: int
+    ) -> str:
+        """OpenAI APIからの応答生成"""
+        if not self.openai_client:
+            self.openai_client = openai.AsyncOpenAI(api_key=provider.api_key)
+        
+        response = await self.openai_client.chat.completions.create(
+            model=provider.model_name,
+            messages=messages,
+            max_tokens=max_tokens,
+            temperature=0.7
+        )
+        
+        return response.choices[0].message.content
+    
+    async def _generate_anthropic_response(
+        self,
+        provider: LLMProvider,
+        messages: List[Dict[str, str]],
+        max_tokens: int
+    ) -> str:
+        """Anthropic APIからの応答生成"""
+        if not self.anthropic_client:
+            self.anthropic_client = anthropic.AsyncAnthropic(api_key=provider.api_key)
+        
+        # systemメッセージを分離
+        system_message = ""
+        user_messages = []
+        
+        for msg in messages:
+            if msg["role"] == "system":
+                system_message = msg["content"]
+            else:
+                user_messages.append(msg)
+        
+        response = await self.anthropic_client.messages.create(
+            model=provider.model_name,
+            max_tokens=max_tokens,
+            system=system_message if system_message else "You are a helpful assistant.",
+            messages=user_messages
+        )
+        
+        return response.content[0].text
+    
+    async def _generate_gemini_response(
+        self,
+        provider: LLMProvider,
+        messages: List[Dict[str, str]],
+        max_tokens: int
+    ) -> str:
+        """Google Gemini APIからの応答生成"""
+        genai.configure(api_key=provider.api_key)
+        model = genai.GenerativeModel(provider.model_name)
+        
+        # Gemini用にメッセージを変換
+        conversation_text = ""
+        for msg in messages:
+            role_prefix = "Human: " if msg["role"] == "user" else "Assistant: "
+            conversation_text += f"{role_prefix}{msg['content']}\n\n"
+        
+        conversation_text += "Assistant: "
+        
+        response = await model.generate_content_async(
+            conversation_text,
+            generation_config=genai.types.GenerationConfig(
+                max_output_tokens=max_tokens,
+                temperature=0.7
+            )
+        )
+        
+        return response.text
+    
+    async def _generate_ollama_response(
+        self,
+        provider: LLMProvider,
+        messages: List[Dict[str, str]],
+        max_tokens: int
+    ) -> str:
+        """Ollama APIからの応答生成"""
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                f"{provider.api_url}/api/chat",
+                json={
+                    "model": provider.model_name,
+                    "messages": messages,
+                    "stream": False,
+                    "options": {
+                        "num_predict": max_tokens,
+                        "temperature": 0.7
+                    }
+                },
+                timeout=60.0
+            )
+            
+            response.raise_for_status()
+            result = response.json()
+            
+            return result["message"]["content"]
+    
+    def truncate_messages_for_context(
+        self,
+        messages: List[MessageResponse],
+        max_tokens: int = 4000
+    ) -> List[MessageResponse]:
+        """コンテキスト制限に合わせてメッセージを切り詰め"""
+        # 簡単な実装：文字数ベースで切り詰め（実際にはトークン数で計算すべき）
+        total_chars = 0
+        truncated_messages = []
+        
+        # 最新のメッセージから逆順で追加
+        for message in reversed(messages):
+            message_chars = len(message.content)
+            if total_chars + message_chars > max_tokens * 4:  # 大まかな文字数換算
+                break
+            
+            truncated_messages.insert(0, message)
+            total_chars += message_chars
+        
+        return truncated_messages
+
+
+# グローバルインスタンス
+llm_service = LLMService()
