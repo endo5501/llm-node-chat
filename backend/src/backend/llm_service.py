@@ -208,6 +208,10 @@ class LLMService:
         max_tokens: int
     ) -> str:
         """Ollama APIからの応答生成"""
+        # api_urlが設定されているかチェック
+        if not provider.api_url:
+            raise ValueError(f"Ollama provider '{provider.name}' requires a base URL. Please set the base URL in settings (e.g., http://localhost:11434)")
+        
         # メッセージを単一のプロンプトに変換
         prompt = ""
         for msg in messages:
@@ -220,25 +224,35 @@ class LLMService:
         
         prompt += "Assistant: "
         
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{provider.api_url}/api/generate",
-                json={
-                    "model": provider.model_name,
-                    "prompt": prompt,
-                    "stream": False,
-                    "options": {
-                        "num_predict": max_tokens,
-                        "temperature": 0.7
-                    }
-                },
-                timeout=60.0
-            )
-            
-            response.raise_for_status()
-            result = response.json()
-            
-            return result["response"]
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"{provider.api_url}/api/generate",
+                    json={
+                        "model": provider.model_name,
+                        "prompt": prompt,
+                        "stream": False,
+                        "options": {
+                            "num_predict": max_tokens,
+                            "temperature": 0.7
+                        }
+                    },
+                    timeout=60.0
+                )
+                
+                response.raise_for_status()
+                result = response.json()
+                
+                return result["response"]
+        except httpx.ConnectError:
+            raise ValueError(f"Cannot connect to Ollama server at {provider.api_url}. Please ensure Ollama is running and accessible.")
+        except httpx.TimeoutException:
+            raise ValueError(f"Timeout connecting to Ollama server at {provider.api_url}. The request took too long.")
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                raise ValueError(f"Model '{provider.model_name}' not found on Ollama server. Please check if the model is installed.")
+            else:
+                raise ValueError(f"Ollama server error (HTTP {e.response.status_code}): {e.response.text}")
     
     def truncate_messages_for_context(
         self,
