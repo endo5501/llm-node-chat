@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { apiClient, type Message, type Conversation, type SendMessageResponse } from '@/lib/api';
+import { getWebSocketClient, type WebSocketMessage, type StreamingMessage } from '@/lib/websocket';
 
 export interface MessageNode {
   id: string;
@@ -32,6 +33,13 @@ export interface ConversationState {
   // エラー状態
   error: string | null;
   
+  // ストリーミング状態
+  isStreaming: boolean;
+  streamingNodeId: string | null;
+  
+  // WebSocket接続状態
+  isWebSocketConnected: boolean;
+  
   // アクション
   addMessage: (parentId: string | null, role: 'user' | 'assistant', content: string) => string;
   selectNode: (nodeId: string) => void;
@@ -40,12 +48,17 @@ export interface ConversationState {
   
   // バックエンドAPI統合アクション
   sendMessageToAPI: (content: string) => Promise<void>;
+  sendMessageViaWebSocket: (content: string) => Promise<void>;
   loadConversationTree: (conversationId: string) => Promise<void>;
   createNewConversation: (title?: string) => Promise<void>;
   loadConversations: () => Promise<void>;
   deleteConversation: (conversationId: string) => Promise<void>;
   setCurrentConversation: (conversationId: string) => void;
   updateConversationTitle: (conversationId: string, title: string) => Promise<void>;
+  
+  // WebSocket関連
+  initializeWebSocket: () => Promise<void>;
+  disconnectWebSocket: () => void;
   
   // ユーティリティ
   convertAPIMessageToNode: (message: Message) => MessageNode;
@@ -60,6 +73,9 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
   conversations: [],
   isLoading: false,
   error: null,
+  isStreaming: false,
+  streamingNodeId: null,
+  isWebSocketConnected: false,
 
   addMessage: (parentId, role, content) => {
     const newId = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -304,6 +320,145 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
       createdAt: new Date(message.created_at),
       children: [],
     };
+  },
+
+  // WebSocket関連メソッド
+  sendMessageViaWebSocket: async (content: string) => {
+    const { currentConversationId, currentNodeId, updateConversationTitle, nodes } = get();
+    
+    if (!currentConversationId) {
+      throw new Error('No active conversation');
+    }
+
+    set({ isStreaming: true, error: null });
+
+    try {
+      const wsClient = getWebSocketClient();
+      
+      // WebSocketが接続されていない場合は接続
+      if (!wsClient.isConnected()) {
+        await wsClient.connect();
+        set({ isWebSocketConnected: true });
+      }
+
+      // 最初のメッセージかどうかを確認
+      const isFirstMessage = Object.keys(nodes).length === 0;
+
+      // ユーザーメッセージをローカルに追加
+      const userNodeId = get().addMessage(currentNodeId, 'user', content);
+
+      // ストリーミング用のアシスタントメッセージを作成
+      const assistantNodeId = get().addMessage(userNodeId, 'assistant', '');
+      set({ streamingNodeId: assistantNodeId });
+
+      // WebSocketメッセージハンドラーを設定
+      let streamingContent = '';
+
+      wsClient.onMessage('user_message', (data: any) => {
+        // ユーザーメッセージの確認（必要に応じて処理）
+        console.log('User message confirmed:', data);
+      });
+
+      wsClient.onMessage('assistant_message_start', (data: any) => {
+        console.log('Assistant message started');
+        streamingContent = '';
+      });
+
+      wsClient.onMessage('assistant_message_chunk', (data: any) => {
+        streamingContent += data.chunk;
+        
+        // ストリーミング中のメッセージを更新
+        set((state) => {
+          const newNodes = { ...state.nodes };
+          if (newNodes[assistantNodeId]) {
+            newNodes[assistantNodeId] = {
+              ...newNodes[assistantNodeId],
+              content: streamingContent,
+            };
+          }
+          return { nodes: newNodes };
+        });
+      });
+
+      wsClient.onMessage('assistant_message_complete', (data: any) => {
+        console.log('Assistant message completed');
+        
+        // 最終的なメッセージで更新
+        set((state) => {
+          const newNodes = { ...state.nodes };
+          if (newNodes[assistantNodeId]) {
+            newNodes[assistantNodeId] = {
+              ...newNodes[assistantNodeId],
+              content: data.message.content,
+              id: data.message.id.toString(),
+            };
+          }
+          return { 
+            nodes: newNodes,
+            isStreaming: false,
+            streamingNodeId: null,
+          };
+        });
+
+        // 最初のメッセージの場合、タイトルを更新
+        if (isFirstMessage) {
+          const title = content.length > 10 ? content.substring(0, 10) : content;
+          updateConversationTitle(currentConversationId, title).catch(console.error);
+        }
+      });
+
+      wsClient.onMessage('error', (data: any) => {
+        console.error('WebSocket error:', data.message);
+        set({ 
+          isStreaming: false,
+          streamingNodeId: null,
+          error: data.message || 'WebSocket error occurred'
+        });
+      });
+
+      // メッセージを送信
+      const success = wsClient.sendChatMessage(
+        parseInt(currentConversationId),
+        currentNodeId ? parseInt(currentNodeId) : null,
+        content
+      );
+
+      if (!success) {
+        throw new Error('Failed to send message via WebSocket');
+      }
+
+    } catch (error) {
+      set({ 
+        isStreaming: false,
+        streamingNodeId: null,
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      });
+      throw error;
+    }
+  },
+
+  initializeWebSocket: async () => {
+    try {
+      const wsClient = getWebSocketClient();
+      await wsClient.connect();
+      set({ isWebSocketConnected: true, error: null });
+    } catch (error) {
+      set({ 
+        isWebSocketConnected: false,
+        error: error instanceof Error ? error.message : 'Failed to connect WebSocket'
+      });
+      throw error;
+    }
+  },
+
+  disconnectWebSocket: () => {
+    const wsClient = getWebSocketClient();
+    wsClient.disconnect();
+    set({ 
+      isWebSocketConnected: false,
+      isStreaming: false,
+      streamingNodeId: null,
+    });
   },
 
   buildTreeFromMessages: (treeData: any) => {

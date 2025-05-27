@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 import uvicorn
 
 from .database import init_db
-from .routers import chat, conversations, providers
+from .routers import chat, conversations, providers, websocket_chat
 
 
 @asynccontextmanager
@@ -35,6 +35,7 @@ app.add_middleware(
 app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
 app.include_router(conversations.router, prefix="/api/conversations", tags=["conversations"])
 app.include_router(providers.router, prefix="/api/providers", tags=["providers"])
+app.include_router(websocket_chat.router, prefix="/api/websocket", tags=["websocket"])
 
 
 @app.get("/")

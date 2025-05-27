@@ -2,9 +2,11 @@ import openai
 import anthropic
 import google.generativeai as genai
 import httpx
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, AsyncGenerator
 import os
 from dotenv import load_dotenv
+import json
+import asyncio
 
 from .models import LLMProvider
 from .schemas import MessageResponse
@@ -254,6 +256,48 @@ class LLMService:
             else:
                 raise ValueError(f"Ollama server error (HTTP {e.response.status_code}): {e.response.text}")
     
+    async def generate_streaming_response(
+        self,
+        provider: LLMProvider,
+        messages: List[MessageResponse],
+        max_tokens: int = 2000
+    ) -> AsyncGenerator[str, None]:
+        """LLMからのストリーミング応答を生成"""
+        
+        provider_type = self._get_provider_type(provider)
+        
+        # メッセージを適切な形式に変換
+        formatted_messages = self._format_messages_for_provider(provider_type, messages)
+        
+        try:
+            if provider_type == "openai":
+                async for chunk in self._generate_openai_streaming_response(
+                    provider, formatted_messages, max_tokens
+                ):
+                    yield chunk
+            elif provider_type == "anthropic":
+                async for chunk in self._generate_anthropic_streaming_response(
+                    provider, formatted_messages, max_tokens
+                ):
+                    yield chunk
+            elif provider_type == "gemini":
+                async for chunk in self._generate_gemini_streaming_response(
+                    provider, formatted_messages, max_tokens
+                ):
+                    yield chunk
+            elif provider_type == "ollama":
+                async for chunk in self._generate_ollama_streaming_response(
+                    provider, formatted_messages, max_tokens
+                ):
+                    yield chunk
+            else:
+                raise ValueError(f"Unsupported provider type: {provider_type}")
+                
+        except Exception as e:
+            # エラーハンドリング
+            print(f"Error generating streaming response from {provider.name} ({provider_type}): {str(e)}")
+            yield f"申し訳ございません。{provider.name}からの応答生成中にエラーが発生しました。"
+
     def truncate_messages_for_context(
         self,
         messages: List[MessageResponse],
@@ -274,6 +318,178 @@ class LLMService:
             total_chars += message_chars
         
         return truncated_messages
+
+
+    async def _generate_openai_streaming_response(
+        self,
+        provider: LLMProvider,
+        messages: List[Dict[str, str]],
+        max_tokens: int
+    ) -> AsyncGenerator[str, None]:
+        """OpenAI/Azure OpenAI APIからのストリーミング応答生成"""
+        # プロバイダーごとにクライアントをキャッシュ
+        client_key = f"openai_{provider.id}"
+        if client_key not in self.clients:
+            # APIキーが無効な場合のチェック
+            if not provider.api_key or provider.api_key == "your-api-key-here":
+                raise ValueError(f"Invalid API key for {provider.name}. Please set a valid API key in settings.")
+            
+            base_url = provider.api_url if provider.api_url else None
+            self.clients[client_key] = openai.AsyncOpenAI(
+                api_key=provider.api_key,
+                base_url=base_url
+            )
+        
+        client = self.clients[client_key]
+        stream = await client.chat.completions.create(
+            model=provider.model_name,
+            messages=messages,
+            max_tokens=max_tokens,
+            temperature=0.7,
+            stream=True
+        )
+        
+        async for chunk in stream:
+            if chunk.choices[0].delta.content is not None:
+                yield chunk.choices[0].delta.content
+
+    async def _generate_anthropic_streaming_response(
+        self,
+        provider: LLMProvider,
+        messages: List[Dict[str, str]],
+        max_tokens: int
+    ) -> AsyncGenerator[str, None]:
+        """Anthropic APIからのストリーミング応答生成"""
+        # プロバイダーごとにクライアントをキャッシュ
+        client_key = f"anthropic_{provider.id}"
+        if client_key not in self.clients:
+            if not provider.api_key or provider.api_key == "your-api-key-here":
+                raise ValueError(f"Invalid API key for {provider.name}. Please set a valid API key in settings.")
+            
+            self.clients[client_key] = anthropic.AsyncAnthropic(api_key=provider.api_key)
+        
+        client = self.clients[client_key]
+        
+        # systemメッセージを分離
+        system_message = ""
+        user_messages = []
+        
+        for msg in messages:
+            if msg["role"] == "system":
+                system_message = msg["content"]
+            else:
+                user_messages.append(msg)
+        
+        async with client.messages.stream(
+            model=provider.model_name,
+            max_tokens=max_tokens,
+            system=system_message if system_message else "You are a helpful assistant.",
+            messages=user_messages
+        ) as stream:
+            async for text in stream.text_stream:
+                yield text
+
+    async def _generate_gemini_streaming_response(
+        self,
+        provider: LLMProvider,
+        messages: List[Dict[str, str]],
+        max_tokens: int
+    ) -> AsyncGenerator[str, None]:
+        """Google Gemini APIからのストリーミング応答生成"""
+        if not provider.api_key or provider.api_key == "your-api-key-here":
+            raise ValueError(f"Invalid API key for {provider.name}. Please set a valid API key in settings.")
+        
+        genai.configure(api_key=provider.api_key)
+        model = genai.GenerativeModel(provider.model_name)
+        
+        # Gemini用にメッセージを変換
+        conversation_text = ""
+        for msg in messages:
+            role_prefix = "Human: " if msg["role"] == "user" else "Assistant: "
+            conversation_text += f"{role_prefix}{msg['content']}\n\n"
+        
+        conversation_text += "Assistant: "
+        
+        # Geminiはストリーミングをサポートしていないため、非ストリーミング応答を分割して送信
+        response = await model.generate_content_async(
+            conversation_text,
+            generation_config=genai.types.GenerationConfig(
+                max_output_tokens=max_tokens,
+                temperature=0.7
+            )
+        )
+        
+        # 応答を単語単位で分割してストリーミング風に送信
+        words = response.text.split()
+        for i, word in enumerate(words):
+            if i == 0:
+                yield word
+            else:
+                yield " " + word
+            # 少し遅延を入れてストリーミング感を演出
+            await asyncio.sleep(0.05)
+
+    async def _generate_ollama_streaming_response(
+        self,
+        provider: LLMProvider,
+        messages: List[Dict[str, str]],
+        max_tokens: int
+    ) -> AsyncGenerator[str, None]:
+        """Ollama APIからのストリーミング応答生成"""
+        # api_urlが設定されているかチェック
+        if not provider.api_url:
+            raise ValueError(f"Ollama provider '{provider.name}' requires a base URL. Please set the base URL in settings (e.g., http://localhost:11434)")
+        
+        # メッセージを単一のプロンプトに変換
+        prompt = ""
+        for msg in messages:
+            if msg["role"] == "user":
+                prompt += f"User: {msg['content']}\n"
+            elif msg["role"] == "assistant":
+                prompt += f"Assistant: {msg['content']}\n"
+            elif msg["role"] == "system":
+                prompt += f"System: {msg['content']}\n"
+        
+        prompt += "Assistant: "
+        
+        try:
+            async with httpx.AsyncClient() as client:
+                async with client.stream(
+                    "POST",
+                    f"{provider.api_url}/api/generate",
+                    json={
+                        "model": provider.model_name,
+                        "prompt": prompt,
+                        "stream": True,
+                        "options": {
+                            "num_predict": max_tokens,
+                            "temperature": 0.7
+                        }
+                    },
+                    timeout=60.0
+                ) as response:
+                    response.raise_for_status()
+                    
+                    async for line in response.aiter_lines():
+                        if line.strip():
+                            try:
+                                data = json.loads(line)
+                                if "response" in data:
+                                    yield data["response"]
+                                if data.get("done", False):
+                                    break
+                            except json.JSONDecodeError:
+                                continue
+                                
+        except httpx.ConnectError:
+            raise ValueError(f"Cannot connect to Ollama server at {provider.api_url}. Please ensure Ollama is running and accessible.")
+        except httpx.TimeoutException:
+            raise ValueError(f"Timeout connecting to Ollama server at {provider.api_url}. The request took too long.")
+        except httpx.HTTPStatusError as e:
+            if e.response.status_code == 404:
+                raise ValueError(f"Model '{provider.model_name}' not found on Ollama server. Please check if the model is installed.")
+            else:
+                raise ValueError(f"Ollama server error (HTTP {e.response.status_code}): {e.response.text}")
 
 
 # グローバルインスタンス
