@@ -94,19 +94,44 @@ export const ConversationTree: React.FC = () => {
     console.log('=== ConversationTree Debug ===');
     console.log('Store nodes:', storeNodes);
 
-    // ノードの配置を計算
-    const calculatePositions = (nodeId: string, level: number = 0, siblingIndex: number = 0) => {
-      const node = storeNodes[nodeId];
-      if (!node) return;
-
-      const x = siblingIndex * 150; // 横の間隔
-      const y = level * 100; // 縦の間隔
-
-      nodePositions[nodeId] = { x, y };
-
-      // 子ノードの処理
-      node.children.forEach((childId, index) => {
-        calculatePositions(childId, level + 1, siblingIndex + index);
+    // ノードの配置を計算（改善版）
+    const calculatePositions = () => {
+      const levelNodes: Record<number, string[]> = {};
+      const nodeDepths: Record<string, number> = {};
+      
+      // 各ノードの深度を計算
+      const calculateDepth = (nodeId: string, depth: number = 0): void => {
+        const node = storeNodes[nodeId];
+        if (!node) return;
+        
+        nodeDepths[nodeId] = depth;
+        if (!levelNodes[depth]) {
+          levelNodes[depth] = [];
+        }
+        levelNodes[depth].push(nodeId);
+        
+        // 子ノードの深度を計算
+        node.children.forEach(childId => {
+          calculateDepth(childId, depth + 1);
+        });
+      };
+      
+      // ルートノードから深度計算を開始
+      const rootNodes = Object.values(storeNodes).filter(node => !node.parentId);
+      rootNodes.forEach(rootNode => {
+        calculateDepth(rootNode.id, 0);
+      });
+      
+      // 各レベルでのノード位置を計算
+      Object.keys(levelNodes).forEach(levelStr => {
+        const level = parseInt(levelStr);
+        const nodesAtLevel = levelNodes[level];
+        
+        nodesAtLevel.forEach((nodeId, index) => {
+          const x = index * 200; // 横の間隔を広げる
+          const y = level * 120; // 縦の間隔も広げる
+          nodePositions[nodeId] = { x, y };
+        });
       });
     };
 
@@ -114,9 +139,8 @@ export const ConversationTree: React.FC = () => {
     const rootNodes = Object.values(storeNodes).filter(node => !node.parentId);
     console.log('Root nodes:', rootNodes);
     
-    rootNodes.forEach((rootNode, index) => {
-      calculatePositions(rootNode.id, 0, index);
-    });
+    // 位置計算を実行
+    calculatePositions();
 
     // React Flow用のノードを作成
     Object.values(storeNodes).forEach((node) => {

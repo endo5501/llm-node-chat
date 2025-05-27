@@ -383,18 +383,51 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
       wsClient.onMessage('assistant_message_complete', (data: any) => {
         console.log('Assistant message completed');
         
-        // 最終的なメッセージで更新
+        // 最終的なメッセージで更新（IDの変更に対応）
         set((state) => {
           const newNodes = { ...state.nodes };
+          const realMessageId = data.message.id.toString();
+          
           if (newNodes[assistantNodeId]) {
-            newNodes[assistantNodeId] = {
-              ...newNodes[assistantNodeId],
+            const oldNode = newNodes[assistantNodeId];
+            
+            // 新しいIDでノードを作成
+            const updatedNode = {
+              ...oldNode,
               content: data.message.content,
-              id: data.message.id.toString(),
+              id: realMessageId,
+            };
+            
+            // 古いノードを削除し、新しいIDでノードを追加
+            delete newNodes[assistantNodeId];
+            newNodes[realMessageId] = updatedNode;
+            
+            // 親ノードの子リストを更新（古いIDから新しいIDに変更）
+            if (oldNode.parentId && newNodes[oldNode.parentId]) {
+              const parentNode = newNodes[oldNode.parentId];
+              newNodes[oldNode.parentId] = {
+                ...parentNode,
+                children: parentNode.children.map(childId => 
+                  childId === assistantNodeId ? realMessageId : childId
+                ),
+              };
+            }
+            
+            // 現在のパスも更新
+            const newPath = state.currentPath.map(nodeId => 
+              nodeId === assistantNodeId ? realMessageId : nodeId
+            );
+            
+            return { 
+              nodes: newNodes,
+              currentNodeId: realMessageId,
+              currentPath: newPath,
+              isStreaming: false,
+              streamingNodeId: null,
             };
           }
+          
           return { 
-            nodes: newNodes,
             isStreaming: false,
             streamingNodeId: null,
           };
