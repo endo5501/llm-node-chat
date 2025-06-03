@@ -47,7 +47,7 @@ export interface LLMProvider {
   name: string;
   provider_type: 'openai' | 'anthropic' | 'gemini' | 'ollama';
   api_key?: string;
-  base_url?: string;
+  api_url?: string;
   model_name: string;
   is_active: boolean;
   created_at: string;

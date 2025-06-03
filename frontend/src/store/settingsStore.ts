@@ -173,7 +173,7 @@ export const useSettingsStore = create<SettingsState>()(
           const updateData: any = {};
           if (config.model) updateData.model_name = config.model;
           if (config.apiKey) updateData.api_key = config.apiKey;
-          if (config.baseUrl) updateData.base_url = config.baseUrl;
+          if (config.baseUrl) updateData.api_url = config.baseUrl;
           
           await apiClient.updateProvider(existingProvider.id, updateData);
           return existingProvider.id;
@@ -184,7 +184,7 @@ export const useSettingsStore = create<SettingsState>()(
             provider_type: config.type === 'azure' ? 'openai' : config.type, // Azure は OpenAI として扱う
             model_name: config.model,
             api_key: config.apiKey,
-            base_url: config.baseUrl,
+            api_url: config.baseUrl,
           });
           
           const { convertAPIProvider } = get();
@@ -232,7 +232,7 @@ export const useSettingsStore = create<SettingsState>()(
           type,
           model: apiProvider.model_name,
           apiKey: apiProvider.api_key || undefined,
-          baseUrl: apiProvider.base_url || undefined,
+          baseUrl: apiProvider.api_url || undefined,
           enabled: true, // APIから取得したプロバイダーは有効とみなす
         };
       },
