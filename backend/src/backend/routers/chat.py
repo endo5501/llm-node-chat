@@ -63,25 +63,6 @@ async def send_message(
             detail="Conversation not found"
         )
     
-    # アクティブなLLMプロバイダーを取得
-    provider = await get_active_llm_provider(db)
-    
-    if not provider:
-        # アクティブなプロバイダーがない場合はエラーを返す
-        error_message = Message(
-            conversation_id=chat_request.conversation_id,
-            parent_id=chat_request.parent_id,
-            role="assistant",
-            content="プロバイダーが選択されていません。設定画面でLLMプロバイダーを選択してください。"
-        )
-        db.add(error_message)
-        await db.commit()
-        await db.refresh(error_message)
-        
-        return ChatResponse(
-            user_message=MessageResponse.from_orm(user_message),
-            assistant_message=MessageResponse.from_orm(error_message)
-        )
     
     # ユーザーメッセージを保存
     user_message = Message(
@@ -93,6 +74,26 @@ async def send_message(
     db.add(user_message)
     await db.commit()
     await db.refresh(user_message)
+
+    # アクティブなLLMプロバイダーを取得
+    provider = await get_active_llm_provider(db)
+
+    if not provider:
+        # アクティブなプロバイダーがない場合はエラーを返す
+        error_message = Message(
+            conversation_id=chat_request.conversation_id,
+            parent_id=user_message.id,
+            role="assistant",
+            content="プロバイダーが選択されていません。設定画面でLLMプロバイダーを選択してください。",
+        )
+        db.add(error_message)
+        await db.commit()
+        await db.refresh(error_message)
+
+        return ChatResponse(
+            user_message=MessageResponse.from_orm(user_message),
+            assistant_message=MessageResponse.from_orm(error_message)
+        )
     
     try:
         # 会話履歴を取得（選択されたノードから根まで）
@@ -217,8 +218,12 @@ async def regenerate_response(
         )
     
     # アクティブなLLMプロバイダーを取得
-    provider = await get_active_llm_provider(db)
-    
+    provider = await get_active_llm_provider(db)    
+    if not provider:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No active provider"
+        )
     try:
         # 親メッセージまでの履歴を取得
         history = await get_conversation_history(
