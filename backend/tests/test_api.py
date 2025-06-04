@@ -1,5 +1,4 @@
 import os
-import sys
 import pytest
 from httpx import AsyncClient
 import httpx
@@ -8,8 +7,6 @@ from asgi_lifespan import LifespanManager
 # Set in-memory database before importing the app
 os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
 
-# Ensure backend package is importable
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 
 from backend.main import app
 from backend.database import Base, engine
