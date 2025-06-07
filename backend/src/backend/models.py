@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, Boolean
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import relationship
-from datetime import datetime
+from datetime import datetime, timezone
 
 Base = declarative_base()
 
@@ -12,8 +12,8 @@ class Conversation(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     title = Column(String(255), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     
     # リレーション
     messages = relationship("Message", back_populates="conversation", cascade="all, delete-orphan")
@@ -28,7 +28,7 @@ class Message(Base):
     parent_id = Column(Integer, ForeignKey("messages.id"), nullable=True)  # NULLならroot
     role = Column(String(20), nullable=False)  # "user", "assistant", "system"
     content = Column(Text, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     
     # リレーション
     conversation = relationship("Conversation", back_populates="messages")
@@ -45,5 +45,5 @@ class LLMProvider(Base):
     api_url = Column(String(255), nullable=True)  # Ollamaなど用
     model_name = Column(String(100), nullable=False)
     is_active = Column(Boolean, default=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
