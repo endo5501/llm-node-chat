@@ -32,7 +32,7 @@ async def create_provider(
             detail=f"Provider with name '{provider.name}' already exists"
         )
     
-    db_provider = LLMProvider(**provider.dict())
+    db_provider = LLMProvider(**provider.model_dump())
     db.add(db_provider)
     await db.commit()
     await db.refresh(db_provider)
@@ -107,7 +107,7 @@ async def update_provider(
         )
     
     # 更新データを適用
-    update_data = provider_update.dict(exclude_unset=True)
+    update_data = provider_update.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(provider, field, value)
     
