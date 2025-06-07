@@ -1,6 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
+import { useTranslations } from 'next-intl';
 import { MessageList } from '@/components/MessageList';
 import { MessageInput } from '@/components/MessageInput';
 import { ConversationTree } from '@/components/ConversationTree';
@@ -13,6 +14,8 @@ const Sidebar = dynamic(() => import('@/components/Sidebar').then(mod => ({ defa
 });
 
 export default function Home() {
+  const t = useTranslations('conversationTree');
+  
   return (
     <div className="flex h-screen">
       {/* 左側サイドバー */}
@@ -30,7 +33,7 @@ export default function Home() {
       {/* ツリー表示領域 */}
       <aside className="w-80 bg-gray-50 border-l border-gray-200">
         <div className="p-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-800">会話ツリー</h2>
+          <h2 className="text-lg font-semibold text-gray-800">{t('title')}</h2>
         </div>
         <div className="h-full">
           <ConversationTree />
