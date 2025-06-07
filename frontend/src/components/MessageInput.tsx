@@ -1,9 +1,11 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import { useConversationStore } from '@/store/conversationStore';
 
 export const MessageInput: React.FC = () => {
+  const t = useTranslations('messageInput');
   const [input, setInput] = useState('');
   const [useWebSocket, setUseWebSocket] = useState(true);
   
@@ -84,7 +86,7 @@ export const MessageInput: React.FC = () => {
       const errorMessage = error instanceof Error ? error.message : 
                           typeof error === 'string' ? error : 
                           JSON.stringify(error);
-      alert(`エラーが発生しました: ${errorMessage}`);
+      alert(t('sendError', { error: errorMessage }));
     }
   };
 
@@ -112,7 +114,7 @@ export const MessageInput: React.FC = () => {
       <div className="flex items-center justify-between mb-2 text-sm">
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            <span className="text-gray-600">通信モード:</span>
+            <span className="text-gray-600">{t('connectionMode')}</span>
             <button
               onClick={() => setUseWebSocket(!useWebSocket)}
               className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
@@ -121,7 +123,7 @@ export const MessageInput: React.FC = () => {
                   : 'bg-gray-100 text-gray-800 border border-gray-300'
               }`}
             >
-              {useWebSocket ? 'WebSocket (ストリーミング)' : 'HTTP API'}
+              {useWebSocket ? t('websocket') : t('httpApi')}
             </button>
           </div>
           
@@ -133,7 +135,7 @@ export const MessageInput: React.FC = () => {
               <span className={`text-xs ${
                 isWebSocketConnected ? 'text-green-600' : 'text-red-600'
               }`}>
-                {isWebSocketConnected ? '接続済み' : '未接続'}
+                {isWebSocketConnected ? t('connected') : t('disconnected')}
               </span>
             </div>
           )}
@@ -142,7 +144,7 @@ export const MessageInput: React.FC = () => {
         {isStreaming && (
           <div className="flex items-center gap-2 text-blue-600">
             <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-            <span className="text-xs">ストリーミング中...</span>
+            <span className="text-xs">{t('streaming')}</span>
           </div>
         )}
       </div>
@@ -155,7 +157,7 @@ export const MessageInput: React.FC = () => {
             setInput(e.target.value);
           }}
           onKeyDown={handleKeyDown}
-          placeholder="メッセージを入力してください..."
+          placeholder={t('placeholder')}
           className="flex-1 resize-none border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-800"
           rows={1}
           disabled={isLoading || isStreaming}
@@ -169,7 +171,7 @@ export const MessageInput: React.FC = () => {
           {isLoading || isStreaming ? (
             <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
           ) : (
-            '送信'
+            t('send')
           )}
         </button>
       </form>

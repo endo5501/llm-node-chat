@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import { useConversationStore, MessageNode } from '@/store/conversationStore';
 
 interface MessageBubbleProps {
@@ -9,6 +10,7 @@ interface MessageBubbleProps {
 }
 
 const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isStreaming = false }) => {
+  const t = useTranslations('messageList');
   const isUser = message.role === 'user';
   
   return (
@@ -36,7 +38,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isStreaming = fa
               <div className="w-1 h-1 bg-blue-500 rounded-full animate-bounce" />
               <div className="w-1 h-1 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }} />
               <div className="w-1 h-1 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
-              <span>入力中</span>
+              <span>{t('typing')}</span>
             </span>
           )}
         </div>
@@ -46,6 +48,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isStreaming = fa
 };
 
 export const MessageList: React.FC = () => {
+  const t = useTranslations('messageList');
   const { getCurrentConversation, isStreaming, streamingNodeId } = useConversationStore();
   const messages = getCurrentConversation();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -59,7 +62,7 @@ export const MessageList: React.FC = () => {
     <div className="flex-1 overflow-y-auto p-4 space-y-2">
       {messages.length === 0 ? (
         <div className="flex items-center justify-center h-full text-gray-500 bg-gray-100">
-          新しい会話を開始してください
+          {t('startNewConversation')}
         </div>
       ) : (
         <>

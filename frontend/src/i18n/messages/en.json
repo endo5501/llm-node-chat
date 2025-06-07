@@ -1,0 +1,59 @@
+{
+  "app": {
+    "title": "LLM Chat"
+  },
+  "sidebar": {
+    "loading": "Loading...",
+    "chatHistory": "Chat History",
+    "newChat": "New Chat",
+    "settings": "Settings",
+    "deleteConfirm": "Do you want to delete this chat?",
+    "noHistory": "No chat history",
+    "newChatError": "Failed to create new chat",
+    "loadError": "Failed to load chat",
+    "deleteError": "Failed to delete chat",
+    "delete": "Delete"
+  },
+  "messageInput": {
+    "placeholder": "Enter your message...",
+    "send": "Send",
+    "connectionMode": "Connection Mode:",
+    "websocket": "WebSocket (Streaming)",
+    "httpApi": "HTTP API",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "streaming": "Streaming...",
+    "sendError": "An error occurred: {error}"
+  },
+  "settings": {
+    "title": "Settings",
+    "loading": "Loading...",
+    "activeProvider": "Active LLM Provider",
+    "noActiveProviders": "No active providers. Please configure providers below.",
+    "providerSettings": "LLM Provider Settings",
+    "enabled": "Enabled",
+    "edit": "Edit",
+    "providerName": "Provider Name",
+    "model": "Model",
+    "apiKey": "API Key",
+    "apiKeyPlaceholder": "Enter your API key",
+    "baseUrl": "Base URL",
+    "save": "Save",
+    "saving": "Saving...",
+    "cancel": "Cancel",
+    "clearLocalStorage": "Clear Local Storage",
+    "language": "Language"
+  },
+  "languages": {
+    "ja": "日本語",
+    "en": "English",
+    "zh": "中文"
+  },
+  "messageList": {
+    "startNewConversation": "Start a new conversation",
+    "typing": "Typing"
+  },
+  "conversationTree": {
+    "title": "Conversation Tree"
+  }
+}

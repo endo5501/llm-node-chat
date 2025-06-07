@@ -1,0 +1,59 @@
+{
+  "app": {
+    "title": "LLM Chat"
+  },
+  "sidebar": {
+    "loading": "Loading...",
+    "chatHistory": "チャット履歴",
+    "newChat": "新規チャット",
+    "settings": "設定",
+    "deleteConfirm": "このチャットを削除しますか？",
+    "noHistory": "チャット履歴がありません",
+    "newChatError": "新規チャットの作成に失敗しました",
+    "loadError": "チャットの読み込みに失敗しました",
+    "deleteError": "チャットの削除に失敗しました",
+    "delete": "削除"
+  },
+  "messageInput": {
+    "placeholder": "メッセージを入力してください...",
+    "send": "送信",
+    "connectionMode": "通信モード:",
+    "websocket": "WebSocket (ストリーミング)",
+    "httpApi": "HTTP API",
+    "connected": "接続済み",
+    "disconnected": "未接続",
+    "streaming": "ストリーミング中...",
+    "sendError": "エラーが発生しました: {error}"
+  },
+  "settings": {
+    "title": "設定",
+    "loading": "読み込み中...",
+    "activeProvider": "アクティブなLLMプロバイダー",
+    "noActiveProviders": "有効なプロバイダーがありません。下記でプロバイダーを設定してください。",
+    "providerSettings": "LLMプロバイダー設定",
+    "enabled": "有効",
+    "edit": "編集",
+    "providerName": "プロバイダー名",
+    "model": "モデル",
+    "apiKey": "APIキー",
+    "apiKeyPlaceholder": "APIキーを入力してください",
+    "baseUrl": "ベースURL",
+    "save": "保存",
+    "saving": "保存中...",
+    "cancel": "キャンセル",
+    "clearLocalStorage": "ローカルストレージをクリア",
+    "language": "言語"
+  },
+  "languages": {
+    "ja": "日本語",
+    "en": "English",
+    "zh": "中文"
+  },
+  "messageList": {
+    "startNewConversation": "新しい会話を開始してください",
+    "typing": "入力中"
+  },
+  "conversationTree": {
+    "title": "会話ツリー"
+  }
+}

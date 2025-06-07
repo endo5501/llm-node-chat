@@ -1,0 +1,59 @@
+{
+  "app": {
+    "title": "LLM 聊天"
+  },
+  "sidebar": {
+    "loading": "加载中...",
+    "chatHistory": "聊天记录",
+    "newChat": "新建聊天",
+    "settings": "设置",
+    "deleteConfirm": "确定要删除这个聊天吗？",
+    "noHistory": "暂无聊天记录",
+    "newChatError": "创建新聊天失败",
+    "loadError": "加载聊天失败",
+    "deleteError": "删除聊天失败",
+    "delete": "删除"
+  },
+  "messageInput": {
+    "placeholder": "请输入消息...",
+    "send": "发送",
+    "connectionMode": "连接模式:",
+    "websocket": "WebSocket (流式传输)",
+    "httpApi": "HTTP API",
+    "connected": "已连接",
+    "disconnected": "未连接",
+    "streaming": "流式传输中...",
+    "sendError": "发生错误: {error}"
+  },
+  "settings": {
+    "title": "设置",
+    "loading": "加载中...",
+    "activeProvider": "活跃的LLM提供商",
+    "noActiveProviders": "没有活跃的提供商。请在下方配置提供商。",
+    "providerSettings": "LLM提供商设置",
+    "enabled": "启用",
+    "edit": "编辑",
+    "providerName": "提供商名称",
+    "model": "模型",
+    "apiKey": "API密钥",
+    "apiKeyPlaceholder": "请输入API密钥",
+    "baseUrl": "基础URL",
+    "save": "保存",
+    "saving": "保存中...",
+    "cancel": "取消",
+    "clearLocalStorage": "清除本地存储",
+    "language": "语言"
+  },
+  "languages": {
+    "ja": "日本語",
+    "en": "English",
+    "zh": "中文"
+  },
+  "messageList": {
+    "startNewConversation": "开始新对话",
+    "typing": "输入中"
+  },
+  "conversationTree": {
+    "title": "对话树"
+  }
+}
